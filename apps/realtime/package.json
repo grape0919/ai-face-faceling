@@ -1,0 +1,23 @@
+{
+  "name": "@faceling/realtime",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "OpenAI Realtime API 음성 대화에 실시간 표정을 붙이는 예제",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@faceling/core": "*",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  },
+  "license": "MIT"
+}

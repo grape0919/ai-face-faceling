@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.env
+*.log
+
+# 오프라인 실험 산출물: 음성과 분석 결과는 저장소에 넣지 않는다
+apps/offline-lab/public/sessions/*/audio/
+apps/offline-lab/public/sessions/*/cache/
+apps/offline-lab/public/sessions/*/session.*.json
+apps/offline-lab/public/models/*.vrm
+
+# 실시간 예제의 판단 기록. 대화 내용이 들어 있다.
+apps/realtime/logs/
+
+# 시험용 음성
+apps/realtime/public/dev/
+
+# 개인 도구 설정
+.claude/

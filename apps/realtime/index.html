@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Faceling 실시간</title>
+    <style>
+      :root {
+        --bg: #f4f2ee;
+        --panel: #ffffff;
+        --ink: #1f2328;
+        --muted: #6b7280;
+        --line: #d9d6cf;
+        --accent: #2f6f5e;
+        --accent-ink: #ffffff;
+        --stage: #dfe6e2;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #17191c;
+          --panel: #1f2226;
+          --ink: #e6e8eb;
+          --muted: #9aa1ab;
+          --line: #33373d;
+          --accent: #5bb39a;
+          --accent-ink: #10231d;
+          --stage: #2a3230;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 14px/1.5 system-ui, 'Malgun Gothic', sans-serif;
+      }
+      main {
+        display: grid;
+        grid-template-columns: minmax(0, 720px) minmax(0, 380px);
+        gap: 16px;
+        align-items: start;
+        padding: 16px;
+        max-width: 1180px;
+        margin: 0 auto;
+      }
+      @media (max-width: 720px) {
+        main { grid-template-columns: minmax(0, 1fr); }
+      }
+      #stage {
+        width: 100%;
+        aspect-ratio: 1;
+        background: var(--stage);
+        border-radius: 12px;
+        overflow: hidden;
+        position: relative;
+      }
+      #stage canvas { width: 100%; height: 100%; display: block; }
+      #turn {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--panel) 88%, transparent);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      #caption {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--panel) 88%, transparent);
+        display: grid;
+        grid-template-columns: 52px 1fr;
+        gap: 2px 8px;
+        min-height: 4.4em;
+      }
+      #caption b { color: var(--accent); }
+      aside { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+      }
+      h1 { font-size: 16px; margin: 0 0 2px; }
+      h2 { font-size: 12px; margin: 0 0 8px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
+      p { margin: 0; color: var(--muted); }
+      .row { display: flex; gap: 6px; flex-wrap: wrap; }
+      button {
+        font: inherit;
+        color: var(--ink);
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      button[aria-pressed='true'], button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-ink);
+      }
+      button:disabled { opacity: 0.5; cursor: default; }
+      textarea {
+        width: 100%;
+        font: inherit;
+        color: var(--ink);
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 6px 8px;
+        margin: 6px 0;
+        resize: vertical;
+      }
+      .options { margin-top: 8px; gap: 14px; align-items: center; color: var(--muted); }
+      select {
+        font: inherit;
+        color: var(--ink);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px 8px;
+      }
+      #dims { display: grid; grid-template-columns: 44px 1fr 150px; gap: 3px 8px; align-items: center; font-variant-numeric: tabular-nums; }
+      .bar { height: 8px; border-radius: 4px; background: var(--line); position: relative; overflow: hidden; }
+      .bar i { position: absolute; top: 0; bottom: 0; left: 0; background: var(--accent); }
+      #judged { min-height: 4.5em; margin-top: 8px; }
+      #stats { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-variant-numeric: tabular-nums; }
+      #stats span { color: var(--muted); }
+      #error { color: #c2410c; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="stage">
+        <canvas id="canvas" width="720" height="720"></canvas>
+        <div id="turn">대기</div>
+        <div id="caption">
+          <b>사용자</b><span id="line-user"></span>
+          <b>AI</b><span id="line-assistant"></span>
+        </div>
+      </div>
+      <aside>
+        <section>
+          <h1>Faceling 실시간</h1>
+          <p id="status">불러오는 중</p>
+          <p id="error"></p>
+        </section>
+        <section>
+          <h2>음성 대화 (OpenAI Realtime)</h2>
+          <div class="row">
+            <button id="connect" class="primary" disabled>대화 시작</button>
+            <button id="speak-first" disabled>AI 가 먼저 말하기</button>
+            <button id="interrupt" disabled>말 끊기</button>
+          </div>
+          <div class="row options">
+            <label>목소리 <select id="voice"></select></label>
+            <label><input id="live-reactions" type="checkbox" checked /> 말하는 도중에도 반응</label>
+          </div>
+          <textarea id="say-text" rows="2" aria-label="글로 말 걸기" placeholder="마이크 대신 글로 말 걸기"></textarea>
+          <div class="row">
+            <button id="say" disabled>글로 말하기</button>
+          </div>
+        </section>
+        <section>
+          <h2>얼굴</h2>
+          <div class="row" id="avatars">
+            <button data-avatar="robot">로봇</button>
+            <button data-avatar="dog">강아지</button>
+          </div>
+        </section>
+        <section>
+          <h2>모의 대화 (연결 없이, 소리 없음)</h2>
+          <textarea id="sim-text" rows="2" aria-label="AI 가 말할 문장">정말요? 와, 축하드려요! 그동안 고생하신 보람이 있네요.</textarea>
+          <div class="row">
+            <button id="sim-say">이 문장을 AI 가 말하기</button>
+            <button id="sim-demo">예시 대화 재생</button>
+            <button id="sim-stop">멈춤</button>
+          </div>
+        </section>
+        <section>
+          <h2>시점</h2>
+          <div id="stats"></div>
+        </section>
+        <section>
+          <h2>부위별 동작 (Jev 의 선택 → 얼굴에 걸린 세기)</h2>
+          <div id="dims"></div>
+          <p id="judged"></p>
+        </section>
+      </aside>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

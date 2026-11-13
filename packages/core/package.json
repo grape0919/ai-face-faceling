@@ -1,0 +1,24 @@
+{
+  "name": "@faceling/core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "표정 엔진의 공용 부분: 부위 정의, 분석기 질문, 동작 → ARKit 52, 합성, 코드로 그린 얼굴",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "license": "MIT"
+}

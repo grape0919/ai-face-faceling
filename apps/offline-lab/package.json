@@ -1,0 +1,29 @@
+{
+  "name": "@faceling/offline-lab",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "session": "tsx src/pipeline/cli.ts",
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@faceling/core": "*",
+    "@anthropic-ai/sdk": "^1.8.0",
+    "@pixiv/three-vrm": "^3.5.5",
+    "three": "^0.187.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "license": "MIT"
+}
