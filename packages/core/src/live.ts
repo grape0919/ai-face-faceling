@@ -1,5 +1,6 @@
 import { charCount, ClauseSplitter, type Clause } from './clauses.js';
-import { BLINK_DURATION, Compositor, bell, type MouthFeatures, type TurnState } from './compositor.js';
+import { BLINK_DURATION, Compositor, bell, type Expression, type MouthFeatures, type TurnState } from './compositor.js';
+import { facePose } from './face.js';
 import type { AnalyzerInput, Judgment } from './judgment.js';
 import type { FacePose } from './mapping.js';
 import { actionWeight, amplitude, targetWeights, type Gesture, type Weights } from './weights.js';
@@ -23,7 +24,12 @@ export interface LiveCue {
   judgment: Judgment;
 }
 
+/**
+ * 한 프레임의 출력. 얼굴용 값(ARKit 52, 머리, 시선)과, 그 바탕이 된 몸과 상관없는 표현을 함께 낸다.
+ * 얼굴 리그는 shapes/head/gaze 를, 얼굴이 없는 몸(로봇팔 등)은 expression 을 쓴다.
+ */
 export interface LiveFrame extends FacePose {
+  expression: Expression;
   debug: { turn: TurnState; weights: Weights; cue: LiveCue | null };
 }
 
@@ -86,7 +92,7 @@ export class LiveFace {
     }
 
     const cue = this.activeCue(now);
-    const pose = this.compositor.step(now, dt, {
+    const expression = this.compositor.express(now, dt, {
       turn: this.turn,
       target: cue?.weights ?? null,
       targetSince: cue?.t ?? 0,
@@ -94,7 +100,7 @@ export class LiveFace {
       mouth,
       blink: bell((now - this.blinkAt) / BLINK_DURATION),
     });
-    return { ...pose, debug: { turn: this.turn, weights: { ...this.compositor.weights }, cue } };
+    return { ...facePose(expression), expression, debug: { turn: this.turn, weights: expression.weights, cue } };
   }
 }
 
