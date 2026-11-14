@@ -1,7 +1,7 @@
 {
   "name": "@faceling/rigs",
   "version": "0.1.0",
-  "description": "Ready-made three.js faces for Faceling: a robot, a dog (CC BY-NC 4.0 designs) and a VRM adapter",
+  "description": "Ready-made three.js faces for Faceling: the Faceling face, a robot and a dog (CC BY-NC 4.0 designs) and a VRM adapter",
   "keywords": [
     "faceling",
     "three",
@@ -29,6 +29,11 @@
       "faceling-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./faceling": {
+      "faceling-source": "./src/faceling.ts",
+      "types": "./dist/faceling.d.ts",
+      "default": "./dist/faceling.js"
     },
     "./robot": {
       "faceling-source": "./src/robot.ts",

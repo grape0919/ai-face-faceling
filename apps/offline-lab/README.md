@@ -82,8 +82,9 @@ npm run lab:dev
 
 ## 얼굴
 
-뷰어의 "얼굴" 칸에서 고른다. 주소에 `avatar=robot`, `avatar=dog`, `avatar=vrm` 을 붙여도 된다. 기본은 로봇이다.
+뷰어의 "얼굴" 칸에서 고른다. 주소에 `avatar=faceling`, `avatar=robot`, `avatar=dog`, `avatar=vrm` 을 붙여도 된다. 기본은 페이스링이다.
 
+- **페이스링**: Faceling 로고와 같은 모양의 2D 얼굴(`src/viewer/rig-faceling.ts`). 둥근 사각 머리, 타원 눈, 앰버색 입이다. 52개 값을 모두 반영하고, 로고에 없는 눈썹과 볼 홍조는 표정에 필요할 때만 나타난다. 눈동자가 없어 시선은 눈 전체를 옮겨 보여 준다.
 - **로봇**: 코드로 그린 얼굴(`src/viewer/rig-robot.ts`). 머리는 3D 도형이고 얼굴은 머리 앞 화면에 2D 로 그린다. ARKit 52개 값을 모두 직접 받아 눈, 눈썹, 볼, 코, 입 모양에 반영하므로 모델 파일이 필요 없다. 생김새를 바꾸려면 이 파일의 그리기 코드를 고친다.
 - **강아지**: 코드로 그린 2D 얼굴(`src/viewer/rig-dog.ts`). 로봇과 같이 52개 값을 모두 반영한다. 머리 회전은 이목구비를 밀어서 흉내 내고, ARKit 에 없는 귀는 눈썹과 눈 값에 따라 서거나 처진다.
 - **VRM 모델**: `public/models/avatar.vrm` 이 있으면 그것을 쓰고, 없으면 three-vrm 예제 모델을 실행 중에 불러온다. "VRM 바꾸기"로 파일을 직접 고를 수도 있다.
@@ -108,13 +109,14 @@ src/
     engine.ts              레이어 합성과 보간
   viewer/                  재생·렌더링 (브라우저)
     player.ts              턴 음성 재생, 립싱크용 오디오 분석
+    rig-faceling.ts        ARKit 프레임 → 코드로 그린 페이스링 얼굴
     rig-robot.ts           ARKit 프레임 → 코드로 그린 로봇 얼굴
     rig-dog.ts             ARKit 프레임 → 코드로 그린 강아지 얼굴
     rig-vrm.ts             ARKit 프레임 → VRM
     main.ts                화면, 녹화
 ```
 
-부위 정의, 질문, 동작 → ARKit 대응, 레이어 합성, 로봇·강아지 얼굴은 `packages/core` 에 있고 실시간 예제(`apps/realtime`)와 함께 쓴다. 이 폴더의 같은 이름 파일들은 그것을 다시 내보내기만 한다.
+부위 정의, 질문, 동작 → ARKit 대응, 레이어 합성은 `packages/core`, 얼굴(페이스링·로봇·강아지)은 `packages/rigs` 에 있고 실시간 예제(`apps/realtime`)와 함께 쓴다. 이 폴더의 같은 이름 파일들은 그것을 다시 내보내기만 한다.
 
 ## 아직 확인하지 못한 것
 
