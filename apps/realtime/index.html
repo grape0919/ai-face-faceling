@@ -3,196 +3,375 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Faceling — 내 AI의 얼굴. 음성 AI 의 표정을 실시간으로 봅니다." />
     <title>Faceling 실시간</title>
     <style>
       :root {
-        --bg: #f4f2ee;
+        --bg: #f5f3ee;
+        --bg-tint: #e3efe9;
         --panel: #ffffff;
-        --ink: #1f2328;
-        --muted: #6b7280;
-        --line: #d9d6cf;
-        --accent: #2f6f5e;
+        --ink: #1b2126;
+        --muted: #66707a;
+        --line: #dcd9d1;
+        --accent: #2c7a66;
+        --accent-soft: #d9ece5;
         --accent-ink: #ffffff;
-        --stage: #dfe6e2;
+        --stage-hi: #f3f8f5;
+        --stage-lo: #cfdfd8;
+        --listen: #d98a1f;
+        --think: #6f74c9;
+        --speak: #2c9c82;
+        --danger: #c8402f;
+        --shadow: 0 18px 50px rgba(30, 50, 45, 0.14);
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #17191c;
-          --panel: #1f2226;
-          --ink: #e6e8eb;
-          --muted: #9aa1ab;
-          --line: #33373d;
-          --accent: #5bb39a;
-          --accent-ink: #10231d;
-          --stage: #2a3230;
+          --bg: #0e1215;
+          --bg-tint: #13231f;
+          --panel: #171c20;
+          --ink: #e8ecee;
+          --muted: #96a0a8;
+          --line: #2a3238;
+          --accent: #58c3a6;
+          --accent-soft: #17332c;
+          --accent-ink: #0b1f19;
+          --stage-hi: #24322f;
+          --stage-lo: #121a19;
+          --listen: #f0b04e;
+          --think: #9aa0f0;
+          --speak: #58c3a6;
+          --danger: #ef6b5a;
+          --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
         }
       }
       * { box-sizing: border-box; }
+      html, body { height: 100%; }
       body {
         margin: 0;
-        background: var(--bg);
         color: var(--ink);
-        font: 14px/1.5 system-ui, 'Malgun Gothic', sans-serif;
+        font: 15px/1.55 system-ui, 'Pretendard', 'Malgun Gothic', sans-serif;
+        background:
+          radial-gradient(1100px 620px at 50% -8%, var(--bg-tint), transparent 70%),
+          var(--bg);
+        background-attachment: fixed;
+        display: flex;
+        flex-direction: column;
       }
-      main {
-        display: grid;
-        grid-template-columns: minmax(0, 720px) minmax(0, 380px);
-        gap: 16px;
-        align-items: start;
-        padding: 16px;
-        max-width: 1180px;
-        margin: 0 auto;
+      button, input, select, textarea { font: inherit; color: inherit; }
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+      /* ── 머리말 ── */
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 20px;
       }
-      @media (max-width: 720px) {
-        main { grid-template-columns: minmax(0, 1fr); }
-      }
-      #stage {
-        width: 100%;
-        aspect-ratio: 1;
-        background: var(--stage);
-        border-radius: 12px;
-        overflow: hidden;
+      .brand { display: flex; align-items: baseline; gap: 10px; }
+      .brand b { font-size: 19px; letter-spacing: -0.02em; }
+      .brand .mark {
+        align-self: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 7px;
+        background: var(--ink);
         position: relative;
       }
+      /* 로고: 화면 얼굴의 두 눈 */
+      .brand .mark::before, .brand .mark::after {
+        content: '';
+        position: absolute;
+        top: 7px;
+        width: 4px;
+        height: 6px;
+        border-radius: 2px;
+        background: var(--accent);
+      }
+      .brand .mark::before { left: 5px; }
+      .brand .mark::after { right: 5px; }
+      .brand .tag { color: var(--muted); font-size: 13px; }
+
+      /* ── 버튼 ── */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s, border-color 0.15s, transform 0.1s;
+      }
+      .btn:hover:not(:disabled) { border-color: var(--accent); }
+      .btn:active:not(:disabled) { transform: translateY(1px); }
+      .btn:disabled { opacity: 0.45; cursor: default; }
+      .btn[aria-pressed='true'] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+      .btn.ghost { background: transparent; }
+      .btn svg { width: 16px; height: 16px; flex: none; }
+
+      /* ── 본문 ── */
+      main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        justify-items: center;
+        gap: 24px;
+        padding: 4px 20px 20px;
+        width: 100%;
+        max-width: 1160px;
+        margin: 0 auto;
+      }
+      body[data-inspect='on'] main { grid-template-columns: minmax(0, 1fr) minmax(0, 360px); align-items: start; }
+      .hero { width: 100%; max-width: 600px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+
+      /* ── 얼굴 ── */
+      #stage {
+        position: relative;
+        width: min(100%, 50vh, 520px);
+        min-width: 240px;
+        aspect-ratio: 1;
+        border-radius: 36px;
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 36%, var(--stage-hi), var(--stage-lo) 78%);
+        box-shadow: 0 0 0 1px var(--line), var(--shadow);
+        transition: box-shadow 0.35s;
+      }
+      body[data-turn='listening'] #stage { box-shadow: 0 0 0 3px var(--listen), var(--shadow); }
+      body[data-turn='thinking'] #stage { box-shadow: 0 0 0 3px var(--think), var(--shadow); }
+      body[data-turn='speaking'] #stage { box-shadow: 0 0 0 3px var(--speak), var(--shadow); }
       #stage canvas { width: 100%; height: 100%; display: block; }
+
       #turn {
         position: absolute;
-        top: 12px;
-        left: 12px;
-        padding: 3px 10px;
+        top: 14px;
+        left: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 4px 11px 4px 9px;
         border-radius: 999px;
-        background: color-mix(in srgb, var(--panel) 88%, transparent);
-        color: var(--accent);
+        font-size: 13px;
         font-weight: 600;
+        background: color-mix(in srgb, var(--panel) 86%, transparent);
+        backdrop-filter: blur(6px);
       }
-      #caption {
+      #turn::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+        transition: background 0.3s;
+      }
+      body[data-turn='listening'] #turn::before { background: var(--listen); animation: pulse 1.1s ease-in-out infinite; }
+      body[data-turn='thinking'] #turn::before { background: var(--think); animation: pulse 0.7s ease-in-out infinite; }
+      body[data-turn='speaking'] #turn::before { background: var(--speak); animation: pulse 1.1s ease-in-out infinite; }
+      @keyframes pulse { 50% { transform: scale(1.6); opacity: 0.55; } }
+      @media (prefers-reduced-motion: reduce) {
+        #turn::before { animation: none !important; }
+        * { transition: none !important; }
+      }
+
+      #avatars {
         position: absolute;
-        left: 12px;
+        top: 12px;
         right: 12px;
-        bottom: 12px;
-        padding: 8px 12px;
-        border-radius: 8px;
-        background: color-mix(in srgb, var(--panel) 88%, transparent);
-        display: grid;
-        grid-template-columns: 52px 1fr;
-        gap: 2px 8px;
-        min-height: 4.4em;
+        display: flex;
+        gap: 4px;
+        padding: 3px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--panel) 86%, transparent);
+        backdrop-filter: blur(6px);
       }
-      #caption b { color: var(--accent); }
-      aside { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-      section {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 12px 14px;
-      }
-      h1 { font-size: 16px; margin: 0 0 2px; }
-      h2 { font-size: 12px; margin: 0 0 8px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
-      p { margin: 0; color: var(--muted); }
-      .row { display: flex; gap: 6px; flex-wrap: wrap; }
-      button {
-        font: inherit;
-        color: var(--ink);
+      #avatars button {
+        border: 0;
         background: transparent;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 6px 12px;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 13px;
         cursor: pointer;
+        color: var(--muted);
       }
-      button[aria-pressed='true'], button.primary {
+      #avatars button[aria-pressed='true'] { background: var(--ink); color: var(--bg); }
+
+      /* ── 대화 ── */
+      .talk { width: 100%; min-height: 5.6em; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+      .bubble {
+        margin: 0;
+        max-width: 88%;
+        padding: 8px 14px;
+        border-radius: 18px;
+        overflow-wrap: anywhere;
+      }
+      .bubble:empty { display: none; }
+      .bubble.user { align-self: flex-end; background: var(--accent-soft); border-bottom-right-radius: 6px; }
+      .bubble.ai { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
+      .intro { margin: 0; text-align: center; }
+      .intro strong { display: block; font-size: 22px; letter-spacing: -0.02em; line-height: 1.3; }
+      .intro span { color: var(--muted); }
+      body[data-talk='on'] .intro { display: none; }
+
+      /* ── 조작 ── */
+      .dock { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
+      #connect {
+        padding: 12px 22px;
+        font-weight: 650;
+        font-size: 16px;
         background: var(--accent);
         border-color: var(--accent);
         color: var(--accent-ink);
+        box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 35%, transparent);
       }
-      button:disabled { opacity: 0.5; cursor: default; }
+      #connect svg { width: 19px; height: 19px; }
+      #connect .icon-stop { display: none; }
+      body[data-live='on'] #connect { background: var(--danger); border-color: var(--danger); color: #fff; box-shadow: none; }
+      body[data-live='on'] #connect .icon-mic { display: none; }
+      body[data-live='on'] #connect .icon-stop { display: block; }
+      /* 연결된 동안에만 의미가 있는 것과 연결 전에만 의미가 있는 것 */
+      body:not([data-live='on']) .live-only { display: none; }
+      body[data-live='on'] .idle-only { display: none; }
+
+      .say { width: 100%; display: flex; gap: 8px; }
+      .say input {
+        flex: 1;
+        min-width: 0;
+        padding: 9px 16px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+      .prefs { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 18px; color: var(--muted); font-size: 13px; }
+      .prefs label { display: inline-flex; align-items: center; gap: 6px; }
+      select {
+        padding: 4px 8px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+      input[type='checkbox'] { accent-color: var(--accent); width: 15px; height: 15px; }
+      #status { margin: 0; color: var(--muted); font-size: 13px; text-align: center; }
+      #error { margin: 0; color: var(--danger); font-size: 13px; text-align: center; white-space: pre-wrap; }
+      #error:empty { display: none; }
+
+      /* ── 안쪽 보기 ── */
+      #inspector { display: none; width: 100%; flex-direction: column; gap: 12px; }
+      body[data-inspect='on'] #inspector { display: flex; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; }
+      .card h2 { margin: 0 0 10px; font-size: 12px; font-weight: 650; letter-spacing: 0.04em; color: var(--muted); }
+      .card p { margin: 0; color: var(--muted); font-size: 13px; }
+      #dims { display: grid; grid-template-columns: 44px 1fr 132px; gap: 6px 10px; align-items: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+      #dims > span:nth-child(3n + 1) { color: var(--muted); }
+      .bar { height: 8px; border-radius: 4px; background: var(--line); position: relative; overflow: hidden; }
+      .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--accent); }
+      #judged { min-height: 5.2em; margin-top: 10px !important; }
+      #stats { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
+      #stats span { color: var(--muted); }
       textarea {
         width: 100%;
-        font: inherit;
-        color: var(--ink);
+        padding: 8px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
         background: transparent;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 6px 8px;
-        margin: 6px 0;
         resize: vertical;
+        margin-bottom: 8px;
       }
-      .options { margin-top: 8px; gap: 14px; align-items: center; color: var(--muted); }
-      select {
-        font: inherit;
-        color: var(--ink);
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 4px 8px;
+      .row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+      footer { padding: 4px 20px 16px; text-align: center; color: var(--muted); font-size: 12px; }
+
+      @media (max-width: 860px) {
+        body[data-inspect='on'] main { grid-template-columns: minmax(0, 1fr); }
+        #stage { width: min(100%, 46vh, 420px); }
+        .brand .tag { display: none; }
       }
-      #dims { display: grid; grid-template-columns: 44px 1fr 150px; gap: 3px 8px; align-items: center; font-variant-numeric: tabular-nums; }
-      .bar { height: 8px; border-radius: 4px; background: var(--line); position: relative; overflow: hidden; }
-      .bar i { position: absolute; top: 0; bottom: 0; left: 0; background: var(--accent); }
-      #judged { min-height: 4.5em; margin-top: 8px; }
-      #stats { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-variant-numeric: tabular-nums; }
-      #stats span { color: var(--muted); }
-      #error { color: #c2410c; white-space: pre-wrap; }
     </style>
   </head>
-  <body>
-    <main>
-      <div id="stage">
-        <canvas id="canvas" width="720" height="720"></canvas>
-        <div id="turn">대기</div>
-        <div id="caption">
-          <b>사용자</b><span id="line-user"></span>
-          <b>AI</b><span id="line-assistant"></span>
-        </div>
+  <body data-live="off" data-turn="idle" data-inspect="off" data-talk="off">
+    <header>
+      <div class="brand">
+        <span class="mark" aria-hidden="true"></span>
+        <b>Faceling</b>
+        <span class="tag">내 AI의 얼굴</span>
       </div>
-      <aside>
-        <section>
-          <h1>Faceling 실시간</h1>
-          <p id="status">불러오는 중</p>
-          <p id="error"></p>
-        </section>
-        <section>
-          <h2>음성 대화 (OpenAI Realtime)</h2>
-          <div class="row">
-            <button id="connect" class="primary" disabled>대화 시작</button>
-            <button id="speak-first" disabled>AI 가 먼저 말하기</button>
-            <button id="interrupt" disabled>말 끊기</button>
-          </div>
-          <div class="row options">
-            <label>목소리 <select id="voice"></select></label>
-            <label><input id="live-reactions" type="checkbox" checked /> 말하는 도중에도 반응</label>
-          </div>
-          <textarea id="say-text" rows="2" aria-label="글로 말 걸기" placeholder="마이크 대신 글로 말 걸기"></textarea>
-          <div class="row">
-            <button id="say" disabled>글로 말하기</button>
-          </div>
-        </section>
-        <section>
-          <h2>얼굴</h2>
-          <div class="row" id="avatars">
+      <button id="inspect-toggle" class="btn ghost" aria-pressed="false" title="표정이 어떻게 정해지는지 봅니다">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></svg>
+        안쪽 보기
+      </button>
+    </header>
+
+    <main>
+      <section class="hero" aria-label="대화">
+        <div id="stage">
+          <canvas id="canvas" width="720" height="720" aria-label="AI 의 얼굴"></canvas>
+          <div id="turn" role="status">대기</div>
+          <div id="avatars" role="group" aria-label="얼굴 고르기">
             <button data-avatar="robot">로봇</button>
             <button data-avatar="dog">강아지</button>
           </div>
-        </section>
-        <section>
-          <h2>모의 대화 (연결 없이, 소리 없음)</h2>
-          <textarea id="sim-text" rows="2" aria-label="AI 가 말할 문장">정말요? 와, 축하드려요! 그동안 고생하신 보람이 있네요.</textarea>
-          <div class="row">
-            <button id="sim-say">이 문장을 AI 가 말하기</button>
-            <button id="sim-demo">예시 대화 재생</button>
-            <button id="sim-stop">멈춤</button>
-          </div>
-        </section>
-        <section>
-          <h2>시점</h2>
-          <div id="stats"></div>
-        </section>
-        <section>
-          <h2>부위별 동작 (Jev 의 선택 → 얼굴에 걸린 세기)</h2>
+        </div>
+
+        <div class="talk" aria-live="polite">
+          <p class="intro">
+            <strong>내 AI의 표정을 실시간으로 봅니다</strong>
+            <span>목소리가 아니라, 말의 뜻으로 짓는 표정.</span>
+          </p>
+          <p class="bubble user" id="line-user"></p>
+          <p class="bubble ai" id="line-assistant"></p>
+        </div>
+
+        <div class="dock">
+          <button id="connect" class="btn" disabled>
+            <svg class="icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+            <svg class="icon-stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>
+            <span id="connect-label">대화 시작</span>
+          </button>
+          <button id="sim-demo" class="btn idle-only" title="연결 없이 예시 대화를 재생합니다. 소리는 나지 않습니다.">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" /></svg>
+            소리 없이 맛보기
+          </button>
+          <button id="speak-first" class="btn live-only" disabled>AI 가 먼저 말하기</button>
+          <button id="interrupt" class="btn live-only" disabled>말 끊기</button>
+        </div>
+
+        <form class="say live-only" id="say-form">
+          <input id="say-text" type="text" autocomplete="off" aria-label="글로 말 걸기" placeholder="마이크 대신 글로 말 걸기" />
+          <button id="say" class="btn" disabled>보내기</button>
+        </form>
+
+        <div class="prefs idle-only">
+          <label>목소리 <select id="voice"></select></label>
+          <label><input id="live-reactions" type="checkbox" checked /> 말하는 도중에도 반응</label>
+        </div>
+
+        <p id="status">불러오는 중</p>
+        <p id="error" role="alert"></p>
+      </section>
+
+      <aside id="inspector" aria-label="안쪽 보기">
+        <div class="card">
+          <h2>지금 얼굴 · 판단 모델의 선택 → 걸린 세기</h2>
           <div id="dims"></div>
           <p id="judged"></p>
-        </section>
+        </div>
+        <div class="card">
+          <h2>시점</h2>
+          <div id="stats"></div>
+        </div>
+        <div class="card">
+          <h2>문장 하나로 시험 · 연결 없이, 소리 없음</h2>
+          <textarea id="sim-text" rows="2" aria-label="AI 가 말할 문장">정말요? 와, 축하드려요! 그동안 고생하신 보람이 있네요.</textarea>
+          <div class="row">
+            <button id="sim-say" class="btn">이 문장을 AI 가 말하기</button>
+            <button id="sim-stop" class="btn ghost">멈춤</button>
+          </div>
+        </div>
       </aside>
     </main>
+
+    <footer>표정은 대화의 글만 보고 정합니다. 소리는 입 모양에만 씁니다.</footer>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

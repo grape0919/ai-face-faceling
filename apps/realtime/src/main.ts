@@ -72,6 +72,8 @@ function onCaption(who: 'user' | 'assistant', text: string): void {
   captions[who] = text;
   $('line-user').textContent = captions.user;
   $('line-assistant').textContent = captions.assistant;
+  // 대화가 시작되면 소개 문구를 치운다
+  document.body.dataset.talk = captions.user || captions.assistant ? 'on' : 'off';
 }
 
 const connection = new RealtimeConnection(director, { onStatus: setStatus, onCaption, onError: setError });
@@ -120,7 +122,11 @@ function showDebug(frame: LiveFrame): void {
         return `${regionSpec(r).label} ${actionLabel(r, top.action)} ${Math.round(top.p * 100)}%`;
       }).join(', ')
     : '';
-  $('turn').textContent = TURN_LABELS[frame.debug.turn];
+  // 턴 상태는 글자와 함께 화면 테두리 색으로도 보여 준다
+  if (document.body.dataset.turn !== frame.debug.turn) {
+    document.body.dataset.turn = frame.debug.turn;
+    $('turn').textContent = TURN_LABELS[frame.debug.turn];
+  }
 }
 
 // ── 매 프레임 ─────────────────────────────────────────────
@@ -158,6 +164,15 @@ async function fakeMic(url: string): Promise<MediaStream> {
 /** 연결된 동안에만 쓸 수 있는 버튼들 */
 function setLiveButtons(on: boolean): void {
   for (const id of ['speak-first', 'interrupt', 'say']) $<HTMLButtonElement>(id).disabled = !on;
+  document.body.dataset.live = on ? 'on' : 'off';
+  $('connect-label').textContent = on ? '대화 끝내기' : '대화 시작';
+}
+
+/** "안쪽 보기": 표정이 어떻게 정해지는지 보여 주는 칸. 넓은 화면에서는 처음부터 열어 둔다. */
+function setInspector(on: boolean): void {
+  document.body.dataset.inspect = on ? 'on' : 'off';
+  $('inspect-toggle').setAttribute('aria-pressed', String(on));
+  localStorage.setItem('faceling.inspect', on ? 'on' : 'off');
 }
 
 async function init(): Promise<void> {
@@ -175,25 +190,23 @@ async function init(): Promise<void> {
     setError('');
     if (connection.connected) {
       connection.disconnect();
-      connectButton.textContent = '대화 시작';
       setLiveButtons(false);
       setStatus('연결을 끊었습니다');
       return;
     }
     simulation.stop();
     connectButton.disabled = true;
+    $('connect-label').textContent = '연결하는 중';
     connection
       .connect({
         voice: $<HTMLSelectElement>('voice').value,
         liveReactions: $<HTMLInputElement>('live-reactions').checked,
         micOverride: fakeMicUrl ? () => fakeMic(fakeMicUrl) : undefined,
       })
-      .then(() => {
-        connectButton.textContent = '대화 끝내기';
-        setLiveButtons(true);
-      })
+      .then(() => setLiveButtons(true))
       .catch((err: unknown) => {
         connection.disconnect();
+        setLiveButtons(false);
         setStatus('연결하지 못했습니다');
         setError(err instanceof Error ? err.message : String(err));
       })
@@ -202,17 +215,22 @@ async function init(): Promise<void> {
 
   $('speak-first').addEventListener('click', () => connection.speakFirst());
   $('interrupt').addEventListener('click', () => connection.interrupt());
-  $('say').addEventListener('click', () => {
-    const box = $<HTMLTextAreaElement>('say-text');
+  $('say-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const box = $<HTMLInputElement>('say-text');
     connection.sendText(box.value);
     box.value = '';
   });
 
+  const savedInspect = localStorage.getItem('faceling.inspect');
+  setInspector(savedInspect ? savedInspect === 'on' : window.innerWidth >= 1100);
+  $('inspect-toggle').addEventListener('click', () => setInspector(document.body.dataset.inspect !== 'on'));
+
   const runSim = (lines: typeof DEMO_LINES): void => {
     if (simulation.running || connection.connected) return;
     setError('');
-    setStatus('모의 대화 중 (소리 없음)');
-    void simulation.run(lines).then(() => setStatus('모의 대화가 끝났습니다'));
+    setStatus('예시 대화를 재생하는 중입니다. 소리는 나지 않습니다.');
+    void simulation.run(lines).then(() => setStatus('예시 대화가 끝났습니다.'));
   };
   $('sim-demo').addEventListener('click', () => runSim(DEMO_LINES));
   $('sim-say').addEventListener('click', () => {
@@ -240,8 +258,8 @@ async function init(): Promise<void> {
   connectButton.disabled = !config.openai;
   setStatus(
     config.openai
-      ? `준비됨 (${config.model}). "대화 시작"을 누르고 마이크를 허용하세요.`
-      : 'OPENAI_API_KEY 가 없어 음성 대화는 할 수 없습니다. 아래 모의 대화로 표정 경로를 확인할 수 있습니다.',
+      ? '"대화 시작"을 누르고 마이크를 허용하세요.'
+      : 'OPENAI_API_KEY 가 없어 음성 대화는 할 수 없습니다. "소리 없이 맛보기"로 표정을 볼 수 있습니다.',
   );
 }
 
