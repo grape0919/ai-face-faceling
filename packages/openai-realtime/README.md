@@ -1,6 +1,6 @@
 # @faceling/openai-realtime
 
-Browser adapter that connects [Faceling](../../README.md) to the OpenAI Realtime API over WebRTC. It turns Realtime events into `LiveDirector` calls, plays the AI's voice, and measures mouth shapes for lip sync.
+Browser adapter that connects [Faceling](https://github.com/grape0919/ai-face-faceling/blob/main/README.md) to the OpenAI Realtime API over WebRTC. It turns Realtime events into `LiveDirector` calls, plays the AI's voice, and measures mouth shapes for lip sync.
 
 ```ts
 import { LiveDirector, LiveFace, createRemoteJudge } from '@faceling/core';

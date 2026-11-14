@@ -17,4 +17,4 @@ const director = new LiveDirector(face, { judge: createRemoteJudge(), clock });
 - `createJevAnalyzer({ apiKey })` calls the Jev judgment model directly. Server-side only.
 - `MouthAnalyser` (browser only) lives at `@faceling/core/lipsync`.
 
-See the [Faceling README](../../README.md#add-it-to-your-app) for a full server and browser example and the list of events. MIT License.
+See the [Faceling README](https://github.com/grape0919/ai-face-faceling/blob/main/README.md#add-it-to-your-app) for a full server and browser example and the list of events. MIT License.

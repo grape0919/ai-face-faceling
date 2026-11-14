@@ -11,6 +11,15 @@
   ],
   "license": "MIT",
   "author": "RED BRIDGE DEV",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/grape0919/ai-face-faceling.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/grape0919/ai-face-faceling/tree/main/packages/server#readme",
+  "bugs": {
+    "url": "https://github.com/grape0919/ai-face-faceling/issues"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",

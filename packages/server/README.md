@@ -1,6 +1,6 @@
 # @faceling/server
 
-Server-side handlers for [Faceling](../../README.md). They keep your OpenAI and Jev keys on the server and give the browser only what it needs.
+Server-side handlers for [Faceling](https://github.com/grape0919/ai-face-faceling/blob/main/README.md). They keep your OpenAI and Jev keys on the server and give the browser only what it needs.
 
 | Handler | Route it expects | Does |
 |---|---|---|
