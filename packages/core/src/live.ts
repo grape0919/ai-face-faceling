@@ -144,6 +144,14 @@ const PARTIAL_STEP = 10;
 const USER_WINDOW = 60;
 /** 응답의 첫 절이 완성되기 전에, 앞머리가 이만큼(공백 제외 글자 수) 들어오면 먼저 판단해 둔다 */
 const PRIME_CHARS = 6;
+/**
+ * 이 글자 수(공백 제외) 이하의 짧은 절은 뒷말을 들어야 뜻이 정해진다("정말요?", "아,", "와!").
+ * 이런 절은 뒷말이 LOOKAHEAD_CHARS 만큼 도착하거나 응답 텍스트가 끝날 때까지 판단을 미룬다.
+ */
+const SHORT_CLAUSE = 4;
+const LOOKAHEAD_CHARS = 12;
+/** 판단에 함께 넘기는 뒷말의 최대 길이(글자 수) */
+const FOLLOWING_MAX = 80;
 /** 앞머리로 건 표정이 유지되는 최대 시간(초). 첫 절의 표정이 걸리면 그쪽으로 넘어간다. */
 const PRIME_HOLD = 2.5;
 /** 듣는 도중의 끄덕임은 이 간격보다 자주 하지 않는다(초) */
@@ -165,6 +173,10 @@ interface PendingClause {
   /** 판단이 도착한 시각 */
   arrived: number;
   scheduled: boolean;
+  /** 판단에 넘길 앞 맥락. 절이 완성된 시점의 것으로 고정한다. */
+  context: string;
+  /** 뒷말을 기다리느라 아직 판단을 묻지 않았는지 */
+  waiting: boolean;
 }
 
 interface ResponseState {
@@ -239,8 +251,9 @@ export class LiveDirector {
   assistantText(delta: string): void {
     if (!this.response) this.assistantStarted();
     const response = this.response as ResponseState;
-    for (const clause of response.splitter.push(delta)) this.addClause(response, clause);
     response.raw += delta;
+    for (const clause of response.splitter.push(delta)) this.addClause(response, clause);
+    this.releaseWaiting(response, false);
     // 첫 절이 아직 완성되지 않았으면 앞머리만으로 먼저 판단해 둔다
     if (!response.primeAsked && response.clauses.length === 0 && charCount(response.raw) >= PRIME_CHARS) {
       response.primeAsked = true;
@@ -259,6 +272,7 @@ export class LiveDirector {
     const response = this.response;
     if (!response) return;
     for (const clause of response.splitter.flush()) this.addClause(response, clause);
+    this.releaseWaiting(response, true);
   }
 
   /** AI 음성이 실제로 재생되기 시작했다. */
@@ -401,14 +415,50 @@ export class LiveDirector {
     const pause = pauseAfter(clause.text);
     response.cursor = end + pause;
     response.pauses += pause;
-    const pending: PendingClause = { clause, start, end, judgment: null, arrived: 0, scheduled: false };
+    const said = response.clauses.slice(-CONTEXT_CLAUSES).map((p) => `assistant: ${p.clause.text}`);
+    const pending: PendingClause = {
+      clause,
+      start,
+      end,
+      judgment: null,
+      arrived: 0,
+      scheduled: false,
+      context: [...this.contextLines(true), ...said].join('\n'),
+      waiting: clause.chars <= SHORT_CLAUSE,
+    };
     response.clauses.push(pending);
+    if (!pending.waiting) this.judgeClause(response, pending);
+  }
 
-    const said = response.clauses.slice(0, -1).slice(-CONTEXT_CLAUSES).map((p) => `assistant: ${p.clause.text}`);
-    const context = [...this.contextLines(true), ...said].join('\n');
+  /** 뒷말을 기다리던 짧은 절 가운데 이제 물어볼 수 있는 것을 묻는다. done 이면 응답 텍스트가 끝났다. */
+  private releaseWaiting(response: ResponseState, done: boolean): void {
+    for (const pending of response.clauses) {
+      if (!pending.waiting) continue;
+      if (done || charCount(this.followingOf(response, pending)) >= LOOKAHEAD_CHARS) {
+        pending.waiting = false;
+        this.judgeClause(response, pending);
+      }
+    }
+  }
+
+  /** 지금까지 도착한 텍스트 가운데 이 절 뒤에 오는 부분 */
+  private followingOf(response: ResponseState, pending: PendingClause): string {
+    const skip = pending.clause.charsBefore + pending.clause.chars;
+    let seen = 0;
+    let i = 0;
+    while (i < response.raw.length && seen < skip) {
+      if (!/\s/.test(response.raw[i] ?? '')) seen += 1;
+      i += 1;
+    }
+    return response.raw.slice(i).trim().slice(0, FOLLOWING_MAX);
+  }
+
+  private judgeClause(response: ResponseState, pending: PendingClause): void {
+    if (response.cancelled) return;
     const asked = this.options.clock();
+    const following = this.followingOf(response, pending);
     void this.options
-      .judge({ speaker: 'assistant', context, current: clause.text })
+      .judge({ speaker: 'assistant', context: pending.context, current: pending.clause.text, following })
       .then((judgment) => {
         const now = this.options.clock();
         pending.judgment = judgment;

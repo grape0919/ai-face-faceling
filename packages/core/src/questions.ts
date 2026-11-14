@@ -7,7 +7,7 @@ import type { AnalyzerInput } from './judgment';
  * 부위와 선택지는 shared/regions.ts 에 있다. Jev 와 LLM 대조군이 같은 문구를 쓴다.
  * 문구나 선택지를 바꾸면 QUESTIONS_VERSION 을 올린다.
  */
-export const QUESTIONS_VERSION = 'r3';
+export const QUESTIONS_VERSION = 'r4';
 
 export type Role = 'speaking' | 'listening';
 export const ROLES: Role[] = ['speaking', 'listening'];
@@ -18,17 +18,23 @@ export interface FaceState {
   role: Role;
   context: string;
   current: string;
+  /** 같은 사람이 current 바로 뒤에 이어서 하는 말. 있을 때만 넣는다. */
+  following?: string;
 }
 
 export const toFaceState = (input: AnalyzerInput): FaceState => ({
   role: input.speaker === 'assistant' ? 'speaking' : 'listening',
   context: input.context,
   current: input.current,
+  ...(input.following?.trim() ? { following: input.following.trim() } : {}),
 });
 
 const INTRO = 'An AI assistant with an animated human-like face is in a voice conversation with a user. ';
 const COMMON =
-  '`context` holds the preceding lines and is only for understanding `current`. The text may be Korean or English.';
+  '`context` holds the preceding lines. `following`, when present, is what the same speaker says right after `current` ' +
+  '(it may be cut off). Use both only to understand what `current` means and feels like: a short line such as ' +
+  '"Really?" or "Oh" takes its feeling from what comes right after it. Judge the face for `current` itself. ' +
+  'The text may be Korean or English.';
 
 export const SCENES: Record<Role, string> = {
   speaking: `${INTRO}The assistant itself is saying \`current\`. ${COMMON}`,

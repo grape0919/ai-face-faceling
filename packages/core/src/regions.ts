@@ -37,13 +37,13 @@ export const REGIONS = {
       },
       raised: {
         label: '올림',
-        desc: 'Both eyebrows raised: surprise, delight, interest, greeting, emphasis on a word.',
+        desc: 'Both eyebrows raised: pleasant or neutral surprise, delight, interest, greeting, emphasis on a word.',
         listen: 'The user shares good news, something surprising or something interesting.',
       },
       inner_up: {
         label: '안쪽 올림',
-        desc: 'Inner ends raised and drawn together: worry, sadness, apology, sympathy, pleading.',
-        listen: 'The user describes a hardship, pain, loss or disappointment: concern and sympathy.',
+        desc: 'Inner ends raised and drawn together: worry, sadness, apology, sympathy, pleading, and a pained "oh no, really?" surprise at bad news.',
+        listen: 'The user describes a hardship, pain, loss, disappointment or alarming bad news: concern and sympathy.',
       },
       lowered: {
         label: '내림',
@@ -70,7 +70,7 @@ export const REGIONS = {
       },
       wide: {
         label: '크게 뜸',
-        desc: 'Eyes opened wide: surprise, excitement, alarm, amazement.',
+        desc: 'Eyes opened wide: surprise of any kind (delighted or shocked), excitement, alarm, amazement.',
         listen: 'The user says something astonishing or alarming.',
       },
       smiling: {
@@ -129,7 +129,7 @@ export const REGIONS = {
       },
       raised: {
         label: '볼 올림',
-        desc: 'Cheeks lifted: happiness, delight, a warm or big smile.',
+        desc: 'Cheeks lifted by a real smile: happiness, delight, a warm or big smile. Not for sad or worrying news.',
         listen: 'Pleased by the good news, joke or kind words the user shares.',
       },
       nose_wrinkled: {

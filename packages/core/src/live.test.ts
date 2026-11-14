@@ -149,10 +149,10 @@ describe('LiveDirector', () => {
     // 최종 전사는 아직 오지 않았다. 그래도 도중에 들린 말이 맥락에 들어간다.
     h.director.assistantStarted();
     h.director.assistantText('정말요? 많이 놀라셨겠어요. 지금 기분은 좀 어떠세요? 천천히 말씀해 주세요. ');
-    const asked = h.asked.filter((a) => a.speaker === 'assistant');
-    expect(asked[0]?.context).toBe('user: 저 오늘 회사에서 해고됐어요');
+    const askedFor = (current: string) => h.asked.find((a) => a.speaker === 'assistant' && a.current === current);
+    expect(askedFor('정말요?')?.context).toBe('user: 저 오늘 회사에서 해고됐어요');
     // 응답이 길어져도 사용자의 말은 맥락에 남는다
-    expect(asked[3]?.context).toBe(
+    expect(askedFor('천천히 말씀해 주세요.')?.context).toBe(
       'user: 저 오늘 회사에서 해고됐어요\nassistant: 많이 놀라셨겠어요.\nassistant: 지금 기분은 좀 어떠세요?',
     );
 
@@ -166,6 +166,36 @@ describe('LiveDirector', () => {
     const last = h.asked[h.asked.length - 1];
     expect(last?.context.split('\n')[0]).toBe('user: 저 오늘 회사에서 해고됐어요.');
     expect(last?.context.split('\n')).toHaveLength(2);
+  });
+
+  it('짧은 절은 뒷말이 조금 도착할 때까지 기다렸다가 뒷말과 함께 판단한다', () => {
+    const h = harness(0.2);
+    h.director.assistantStarted();
+    h.director.assistantText('정말요? ');
+    expect(h.asked).toHaveLength(0);
+    h.director.assistantText('강아지가 ');
+    expect(h.asked).toHaveLength(0);
+    h.director.assistantText('아프다니 너무 슬퍼');
+    expect(h.asked).toHaveLength(1);
+    expect(h.asked[0]).toMatchObject({ current: '정말요?', following: '강아지가 아프다니 너무 슬퍼' });
+  });
+
+  it('짧은 절만 있는 응답은 텍스트가 끝날 때 판단한다', () => {
+    const h = harness(0.2);
+    h.director.assistantStarted();
+    h.director.assistantText('네. ');
+    expect(h.asked).toHaveLength(0);
+    h.director.assistantTextDone();
+    expect(h.asked).toHaveLength(1);
+    expect(h.asked[0]?.current).toBe('네.');
+  });
+
+  it('긴 절은 기다리지 않고, 도착한 만큼의 뒷말을 함께 넘긴다', () => {
+    const h = harness(0.2);
+    h.director.assistantStarted();
+    h.director.assistantText('지금부터 천천히 설명해 드릴게요. 먼저');
+    expect(h.asked).toHaveLength(1);
+    expect(h.asked[0]).toMatchObject({ current: '지금부터 천천히 설명해 드릴게요.', following: '먼저' });
   });
 
   it('첫 절이 길면 앞머리만 보고 시작 표정을 먼저 건다', async () => {

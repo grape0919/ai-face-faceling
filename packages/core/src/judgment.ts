@@ -19,6 +19,11 @@ export interface AnalyzerInput {
   context: string;
   /** 판단 대상 구간 */
   current: string;
+  /**
+   * 같은 사람이 current 바로 뒤에 이어서 하는 말. 도착한 만큼만 들어 있다(끝까지가 아닐 수 있다).
+   * "정말요?"처럼 뒷말을 들어야 뜻이 정해지는 구간을 판단할 때 쓴다. 없으면 비워 둔다.
+   */
+  following?: string;
 }
 
 export interface Analyzer {

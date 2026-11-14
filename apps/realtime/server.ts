@@ -160,6 +160,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, route: strin
       speaker: body.speaker === 'user' ? 'user' : 'assistant',
       context: text(body.context, 1200),
       current: text(body.current, 400),
+      following: text(body.following, 400),
     };
     if (!input.current.trim()) {
       send(res, 400, { error: 'current 가 비어 있습니다' });

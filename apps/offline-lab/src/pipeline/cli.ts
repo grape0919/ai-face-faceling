@@ -136,10 +136,16 @@ async function main(): Promise<void> {
   for (const turn of turns) {
     for (const segment of turn.segments) {
       segment.index = index++;
+      const following = turn.segments
+        .slice(turn.segments.indexOf(segment) + 1)
+        .map((s) => s.text)
+        .join(' ')
+        .slice(0, 80);
       const input: AnalyzerInput = {
         speaker: turn.speaker,
         context: history.slice(-CONTEXT_SEGMENTS).join('\n'),
         current: segment.text,
+        ...(following ? { following } : {}),
       };
       jobs.push({ segment, input });
       history.push(`${turn.speaker}: ${segment.text}`);
