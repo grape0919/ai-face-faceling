@@ -17,6 +17,8 @@ export interface RealtimeCallbacks {
   onStatus(text: string): void;
   onCaption(who: 'user' | 'assistant', text: string, final: boolean): void;
   onError(message: string): void;
+  /** 연결이 저절로 끊겼을 때 (네트워크 문제 등). 직접 끊은 경우에는 부르지 않는다. */
+  onDropped?(): void;
 }
 
 export interface ConnectOptions {
@@ -26,6 +28,10 @@ export interface ConnectOptions {
   liveReactions?: boolean;
   /** 마이크 대신 쓸 소리. 시험용. */
   micOverride?: () => Promise<MediaStream>;
+  /** 마이크 없이 글로만 대화한다. AI 의 답은 여전히 소리로 나온다. */
+  withoutMic?: boolean;
+  /** 연결되자마자 AI 가 먼저 인사하게 한다. */
+  greet?: boolean;
 }
 
 interface ServerEvent {
@@ -48,8 +54,10 @@ export class RealtimeConnection {
   transcriber: LiveTranscriber | null = null;
   private userSpeaking = false;
   connected = false;
-  /** 마이크를 쓰지 못해 듣기만 하는 연결인지 */
+  /** 마이크를 쓰지 못해(또는 쓰지 않기로 해서) 듣기만 하는 연결인지 */
   listenOnly = false;
+  /** 마이크 음소거 여부. 연결은 그대로 두고 입력만 막는다. */
+  micEnabled = true;
   /** 받은 사건 종류별 횟수. 문제를 찾을 때 본다. */
   readonly seen: Record<string, number> = {};
 
@@ -72,6 +80,7 @@ export class RealtimeConnection {
 
     this.callbacks.onStatus('마이크를 여는 중');
     try {
+      if (options.withoutMic) throw new Error('마이크 없이 연결');
       this.mic = options.micOverride
         ? await options.micOverride()
         : await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -82,6 +91,7 @@ export class RealtimeConnection {
       this.mic = silent.createMediaStreamDestination().stream;
       this.listenOnly = true;
     }
+    this.micEnabled = !this.listenOnly;
 
     const pc = new RTCPeerConnection();
     this.pc = pc;
@@ -114,11 +124,14 @@ export class RealtimeConnection {
           ? `연결됨 (${token.model ?? ''}). 마이크를 쓸 수 없어 듣기만 합니다. "AI 가 먼저 말하기"를 눌러 보세요.`
           : `연결됨 (${token.model ?? ''}). 말을 걸어 보세요.`,
       );
+      if (options.greet) this.speakFirst();
     });
     pc.addEventListener('connectionstatechange', () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        if (this.pc !== pc) return;
         this.callbacks.onStatus('연결이 끊겼습니다');
         this.disconnect();
+        this.callbacks.onDropped?.();
       }
     });
 
@@ -176,6 +189,21 @@ export class RealtimeConnection {
     this.audio.srcObject = null;
     this.director.assistantInterrupted();
     this.director.face.turn = 'idle';
+  }
+
+  /**
+   * 마이크를 켜고 끈다. 연결은 그대로 두고 소리만 막는다.
+   * 전사용 연결도 같은 트랙을 쓰므로 함께 막힌다.
+   */
+  setMicEnabled(on: boolean): void {
+    if (this.listenOnly) return;
+    this.micEnabled = on;
+    for (const track of this.mic?.getAudioTracks() ?? []) track.enabled = on;
+    if (!on && this.userSpeaking) {
+      this.userSpeaking = false;
+      this.director.userSpeechStopped();
+      this.transcriber?.cut();
+    }
   }
 
   /** AI 가 먼저 말을 꺼내게 한다. */
