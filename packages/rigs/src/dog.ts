@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARKIT_52, type FacePose } from '../mapping';
+import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
 
 /**
  * 코드로 그린 강아지 얼굴. 전체를 2D 그림으로 그리고, 머리 회전은 이목구비를 밀어 주는 방식으로 흉내 낸다.

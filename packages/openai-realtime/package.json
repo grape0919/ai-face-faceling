@@ -1,0 +1,55 @@
+{
+  "name": "@faceling/openai-realtime",
+  "version": "0.1.0",
+  "description": "Browser adapter that connects the OpenAI Realtime API (WebRTC) to the Faceling expression engine",
+  "keywords": [
+    "faceling",
+    "openai",
+    "realtime",
+    "webrtc",
+    "voice-ai"
+  ],
+  "license": "MIT",
+  "author": "RED BRIDGE DEV",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/grape0919/ai-face-faceling.git",
+    "directory": "packages/openai-realtime"
+  },
+  "homepage": "https://github.com/grape0919/ai-face-faceling/tree/main/packages/openai-realtime#readme",
+  "bugs": {
+    "url": "https://github.com/grape0919/ai-face-faceling/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "faceling-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@faceling/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

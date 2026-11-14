@@ -1,5 +1,5 @@
-import { REGION_KEYS, regionSpec, type Region } from './regions';
-import type { AnalyzerInput } from './judgment';
+import { REGION_KEYS, regionSpec, type Region } from './regions.js';
+import type { AnalyzerInput } from './judgment.js';
 
 /**
  * 분석기에 던지는 질문 세트. 얼굴 부위마다 "이 구간에서 어떤 동작을 해야 하는가"를 직접 묻는다.

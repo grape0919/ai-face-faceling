@@ -12,6 +12,13 @@ interface TranscriptionEvent {
   error?: { message?: string };
 }
 
+export interface LiveTranscriberOptions {
+  /** 전사용 임시 키를 발급하는 내 서버 주소. 기본값 '/api/transcription-session'. */
+  sessionUrl?: string;
+  /** 임시 키 요청에 붙일 헤더 */
+  headers?: Record<string, string>;
+}
+
 export class LiveTranscriber {
   private pc: RTCPeerConnection | null = null;
   private channel: RTCDataChannel | null = null;
@@ -24,10 +31,14 @@ export class LiveTranscriber {
     /** 이번 발화에서 지금까지 들린 전체 글자를 넘긴다 */
     private readonly onPartial: (text: string) => void,
     private readonly onProblem: (message: string) => void,
+    private readonly options: LiveTranscriberOptions = {},
   ) {}
 
   async connect(mic: MediaStream): Promise<void> {
-    const tokenRes = await fetch('/api/transcription-session', { method: 'POST' });
+    const tokenRes = await fetch(this.options.sessionUrl ?? '/api/transcription-session', {
+      method: 'POST',
+      headers: this.options.headers,
+    });
     const token = (await tokenRes.json()) as { value?: string; error?: string };
     if (!tokenRes.ok || !token.value) throw new Error(token.error ?? '전사용 임시 키를 받지 못했습니다');
 

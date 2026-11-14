@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ClauseSplitter } from './clauses';
-import type { AnalyzerInput, Judgment } from './judgment';
-import { LiveDirector, LiveFace } from './live';
-import { onlyAction, restProbs, type Region } from './regions';
+import { ClauseSplitter } from './clauses.js';
+import type { AnalyzerInput, Judgment } from './judgment.js';
+import { LiveDirector, LiveFace } from './live.js';
+import { onlyAction, restProbs, type Region } from './regions.js';
 
 const j = (picks: Partial<Record<Region, string>>, intensity = 1): Judgment => {
   const regions = restProbs();

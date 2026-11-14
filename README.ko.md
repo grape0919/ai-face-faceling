@@ -40,12 +40,119 @@ http://localhost:5174 를 열면 얼굴과 목소리를 고르는 안내가 나�
 
 얼굴은 안내 화면이나 대화 화면의 "캐릭터 변경"에서 고른다. 로봇, 강아지, 3D 모델이 있다. 3D 는 pixiv 의 예제 모델 [VRM1_Constraint_Twist_Sample](https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models)(© 2022 pixiv Inc., [VRM Public License 1.0](https://vrm.dev/licenses/1.0/))을 실행 중에 인터넷에서 불러오며, 이 저장소에는 들어 있지 않다. 이 모델은 VRM 표준 표정(기쁨, 슬픔, 놀람 등)만 가지고 있어 로봇·강아지보다 표정이 단순하게 보인다. ARKit 표정을 가진 VRM 을 개발자 패널(`` ` `` 키) → "내 VRM 불러오기"로 넣으면 모든 표정이 반영된다.
 
+## 내 앱에 붙이기
+
+Faceling 은 패키지 네 개로 나뉘어 있다. 필요한 것만 쓰면 된다.
+
+| 패키지 | 도는 곳 | 하는 일 |
+|---|---|---|
+| [`@faceling/core`](packages/core) | 어디서나 | 표정 엔진. `LiveDirector`(대화 사건을 받아 절마다 판단하고 표정을 예약)와 `LiveFace`(부를 때마다 ARKit 52 값 한 장). 의존성 없음 |
+| [`@faceling/server`](packages/server) | Node 20 이상 | 키를 서버에만 두는 요청 처리기. Jev 판단 중계, OpenAI Realtime 임시 키 발급 |
+| [`@faceling/openai-realtime`](packages/openai-realtime) | 브라우저 | OpenAI Realtime API 에 WebRTC 로 붙어 사건을 엔진에 넘기는 어댑터 |
+| [`@faceling/rigs`](packages/rigs) | 브라우저 | 바로 쓸 수 있는 three.js 얼굴. 로봇, 강아지, VRM 연결. `three` 는 peer 의존성 |
+
+```bash
+npm install @faceling/core @faceling/server @faceling/openai-realtime @faceling/rigs three
+```
+
+> 아직 npm 에 올리지 않았다. 그전까지는 이 저장소에서 `npm run build` 로 빌드하고 `npm pack -w @faceling/core -w @faceling/server -w @faceling/openai-realtime -w @faceling/rigs` 로 만든 `.tgz` 파일을 설치한다.
+
+### 서버
+
+키는 여기에만 둔다. 환경 변수 `OPENAI_API_KEY`, `TYPESAFE_API_KEY` 를 쓰거나 `apiKey` 옵션으로 넘긴다.
+
+```ts
+// server.ts (Node 20 이상)
+import { createServer } from 'node:http';
+import { createFacelingHandler, toNodeHandler } from '@faceling/server';
+
+// POST /api/session, /api/transcription-session, /api/judge 를 받는다
+const api = toNodeHandler(
+  createFacelingHandler({
+    session: {
+      instructions: '당신은 다정하고 표정이 풍부한 대화 상대입니다. 두세 문장으로 짧게 답하세요.',
+      language: 'ko',
+    },
+    transcription: { language: 'ko' },
+  }),
+);
+
+createServer((req, res) => {
+  if (req.url?.startsWith('/api/')) return void api(req, res);
+  res.writeHead(404).end(); // 내 웹 앱은 여기서 내준다
+}).listen(3000);
+```
+
+처리기는 평범한 `Request → Response` 함수라서 다른 프레임워크에도 그대로 들어간다. Express 에서는 `app.use('/api', toNodeHandler(createFacelingHandler()))`, Next.js 에서는 `app/api/[route]/route.ts` 에 `export const POST = createFacelingHandler()`. 하나씩 걸려면 `createJudgeHandler()`, `createSessionHandler()`, `createTranscriptionSessionHandler()` 를 쓴다. **인증이 들어 있지 않다.** 외부에 열기 전에 로그인과 요청 제한을 앞에 넣어야 한다. 그대로 열면 누구나 내 키로 호출할 수 있다.
+
+### 브라우저
+
+```ts
+import { LiveDirector, LiveFace, createRemoteJudge } from '@faceling/core';
+import { RealtimeConnection } from '@faceling/openai-realtime';
+import { RobotRig } from '@faceling/rigs';
+import * as THREE from 'three';
+
+// 엔진: 절마다 내 서버(/api/judge)에 판단을 묻고, 소리에 맞춰 표정을 건다
+const clock = () => performance.now() / 1000;
+const face = new LiveFace();
+const director = new LiveDirector(face, { judge: createRemoteJudge(), clock });
+
+// 어댑터: /api/session 의 임시 키로 OpenAI Realtime 에 WebRTC 로 붙는다
+const connection = new RealtimeConnection(director, {
+  onStatus: (text) => console.log(text),
+  onCaption: (who, text, final) => final && console.log(`${who}: ${text}`),
+  onError: (message) => console.error(message),
+});
+document.querySelector('#start')!.addEventListener('click', () => connection.connect({ greet: true }));
+
+// 얼굴: ARKit 52 값을 받는 렌더러면 무엇이든 된다. 여기서는 기본 로봇.
+const renderer = new THREE.WebGLRenderer({ canvas: document.querySelector('canvas')!, antialias: true });
+const scene = new THREE.Scene();
+scene.add(new THREE.AmbientLight(0xffffff, 1.3), new THREE.DirectionalLight(0xffffff, 2.2));
+const camera = new THREE.PerspectiveCamera(24, 1, 0.1, 20);
+camera.position.set(0, 1.47, 1.35);
+camera.lookAt(0, 1.42, 0);
+const robot = new RobotRig();
+scene.add(robot.object);
+
+renderer.setAnimationLoop(() => {
+  robot.apply(face.update(clock(), connection.mouth())); // 한 장: ARKit 52 + 머리 + 시선
+  renderer.render(scene, camera);
+});
+```
+
+서버 주소가 다르면 넘겨 준다. `createRemoteJudge({ url })`, `new RealtimeConnection(director, callbacks, { sessionUrl, transcriptionSessionUrl, headers })`. AI 가 먼저 인사할 때 받는 지시는 `greeting` 옵션으로 바꾼다.
+
+로봇 대신 내 얼굴을 움직이려면 프레임을 직접 읽는다. `face.update(now, mouth)` 는 `{ shapes, head, gaze }` 를 돌려준다. `shapes` 는 ARKit 52 blendshape 이름별 0~1 값, `head` 는 라디안 단위의 `pitch`, `yaw`, `roll`, `gaze` 는 -1~1 의 `x`, `y` 다. VRM 모델은 `@pixiv/three-vrm` 으로 불러와 `@faceling/rigs` 의 `VrmRig` 에 넣는다.
+
+### 다른 음성 대화 서비스
+
+`@faceling/openai-realtime` 은 어댑터일 뿐이다. 다른 음성 대화 서비스에 붙이려면, 그 서비스의 사건이 올 때 `LiveDirector` 의 아래 메서드를 부르는 어댑터를 쓰면 된다. 이것이 전부다.
+
+| 메서드 | 언제 부르나 |
+|---|---|
+| `assistantStarted()` | AI 응답이 만들어지기 시작 |
+| `assistantText(delta)` | 응답 텍스트 조각 도착 |
+| `assistantTextDone()` | 응답 텍스트 끝 |
+| `assistantAudioStarted()` | AI 음성이 실제로 재생되기 시작 |
+| `assistantAudioStopped()` | AI 음성 재생 끝 |
+| `assistantInterrupted()` | 사용자가 끼어들어 음성이 끊김 |
+| `userSpeechStarted()` / `userSpeechStopped()` | 사용자 말 시작·끝 |
+| `userPartial(text)` | 말하는 도중에 들린 글자(이번 발화의 처음부터 지금까지). 없어도 된다 |
+| `userTranscript(text)` | 사용자 말의 최종 전사 도착 |
+
+입 모양은 `face.update()` 의 두 번째 인자로 넣는다. `@faceling/core/lipsync` 의 `MouthAnalyser` 가 Web Audio `AnalyserNode` 에서 읽어 준다. 소리가 없으면 `null` 을 넣는다.
+
 ## 구성
 
 | 폴더 | 내용 |
 |---|---|
-| [`packages/core`](packages/core) | 표정 엔진. 부위 정의, 판단 모델에 던지는 질문, 동작 → ARKit 52 대응, 레이어 합성, 실시간 예약, 로봇·강아지 얼굴 |
-| [`apps/realtime`](apps/realtime) | OpenAI Realtime API 에 붙인 실시간 예제. 키를 숨기는 작은 서버 포함 |
+| [`packages/core`](packages/core) | 표정 엔진. 부위 정의, 판단 모델에 던지는 질문, 동작 → ARKit 52 대응, 레이어 합성, 실시간 예약 |
+| [`packages/rigs`](packages/rigs) | 로봇·강아지 얼굴과 VRM 연결(three.js) |
+| [`packages/openai-realtime`](packages/openai-realtime) | OpenAI Realtime API 브라우저 어댑터 |
+| [`packages/server`](packages/server) | Node 처리기. Jev 중계, 임시 키 발급 |
+| [`apps/realtime`](apps/realtime) | 위 패키지로 만든 실시간 예제 |
 | [`apps/offline-lab`](apps/offline-lab) | 녹음된 대화로 표정을 미리 만들어 돌려 보는 실험 도구. 표정 대응을 다듬을 때 쓴다 |
 
 ## 동작 방식
@@ -74,7 +181,7 @@ AI 응답의 글은 소리보다 1~2초 먼저 도착하므로, 대부분의 구
 
 같은 표정이라도 부위마다 따라오는 속도가 다르다. 눈썹과 눈은 빠르게 반응하고, 입꼬리와 볼은 늦게 생겨 오래 남는다. 소리는 입 모양(립싱크)에만 쓰고, 감정은 글에서만 읽는다.
 
-다른 음성 대화 서비스에 붙이려면 그 서비스의 사건을 엔진에 넘기는 어댑터만 쓰면 된다. 엔진이 받는 사건은 [실시간 예제 문서](apps/realtime/README.md#구조)에 정리되어 있다.
+다른 음성 대화 서비스에 붙이려면 그 서비스의 사건을 엔진에 넘기는 어댑터만 쓰면 된다. 엔진이 받는 사건은 [다른 음성 대화 서비스](#다른-음성-대화-서비스)에 정리되어 있다.
 
 그림은 `docs/diagrams/build.mjs` 에서 만든다. 고친 뒤 `node docs/diagrams/build.mjs` 로 한국어·영어판을 함께 다시 만든다.
 
@@ -89,6 +196,6 @@ AI 응답의 글은 소리보다 1~2초 먼저 도착하므로, 대부분의 구
 ## 라이선스
 
 - 코드: [MIT](LICENSE)
-- 기본 얼굴 두 가지(로봇, 강아지)의 디자인: [CC BY-NC 4.0](packages/core/src/rigs/LICENSE.md). 비상업 용도로는 자유롭게 쓸 수 있고, 상업 제품의 얼굴로 쓰려면 허락이 필요하다. 직접 만든 얼굴에는 이 조건이 적용되지 않는다.
+- 기본 얼굴 두 가지(로봇, 강아지)의 디자인: [CC BY-NC 4.0](packages/rigs/LICENSE.md). 비상업 용도로는 자유롭게 쓸 수 있고, 상업 제품의 얼굴로 쓰려면 허락이 필요하다. 직접 만든 얼굴에는 이 조건이 적용되지 않는다.
 
 © 2026 RED BRIDGE DEV

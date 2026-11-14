@@ -76,16 +76,24 @@ OpenAI 키가 없으면 "예시 대화 보기"로 표정 경로를 볼 수 있�
 ## 구조
 
 ```
-server.ts          임시 키 발급(/api/session), Jev 중계(/api/judge), 화면 파일 제공
-src/realtime.ts    OpenAI Realtime 어댑터: WebRTC 연결, 사건 → LiveDirector
-src/transcriber.ts 말하는 도중의 전사를 받는 두 번째 연결
+server.ts          @faceling/server 로 임시 키 발급·Jev 중계, 화면 설정(/api/config), 판단 기록, 화면 파일 제공
 src/simulate.ts    모의 대화
 src/main.ts        화면(온보딩, 대화 화면, 개발자 패널)
 public/brand/      로고(심볼, 조합형)
 ```
 
-표정 엔진 자체는 `packages/core` 에 있다(`live.ts`, `compositor.ts`, `clauses.ts`).
-다른 음성 대화 서비스에 붙이려면 `src/realtime.ts` 에 해당하는 어댑터만 새로 쓰면 된다. LiveDirector 가 받는 사건은 다음이 전부다.
+이 예제는 저장소의 패키지만 가져다 쓴다. 다른 앱에 붙일 때도 같은 패키지를 쓰면 된다(루트 README 의 "내 앱에 붙이기").
+
+| 패키지 | 여기서 쓰는 것 |
+|---|---|
+| `@faceling/core` | 표정 엔진(`live.ts`, `compositor.ts`, `clauses.ts`) |
+| `@faceling/openai-realtime` | OpenAI Realtime 어댑터(`connection.ts`: WebRTC 연결, 사건 → LiveDirector)와 말하는 도중의 전사를 받는 두 번째 연결(`transcriber.ts`) |
+| `@faceling/rigs` | 로봇·강아지 얼굴과 VRM 연결 |
+| `@faceling/server` | `/api/session`, `/api/transcription-session`, `/api/judge` 처리기 |
+
+개발 중에는 패키지를 빌드하지 않는다. `npm run rt:dev` 는 `faceling-source` 조건으로 각 패키지의 TS 원본을 바로 읽는다. 브라우저 쪽 패키지는 고친 뒤 화면을 새로 고치면, `@faceling/server` 는 서버를 다시 시작하면 반영된다.
+
+다른 음성 대화 서비스에 붙이려면 `packages/openai-realtime/src/connection.ts` 에 해당하는 어댑터만 새로 쓰면 된다. LiveDirector 가 받는 사건은 다음이 전부다.
 
 | 메서드 | 언제 부르나 |
 |---|---|
@@ -102,7 +110,7 @@ public/brand/      로고(심볼, 조합형)
 ## 보안
 
 - OpenAI 와 Jev 의 키는 서버에만 있다. 브라우저는 몇 분짜리 임시 키만 받는다.
-- 서버는 `127.0.0.1` 에만 열린다. 다른 기기에서 접속하게 하려면 `/api/judge` 와 `/api/session` 앞에 인증을 먼저 넣어야 한다. 그대로 열면 누구나 내 키로 호출할 수 있다.
+- 서버는 `127.0.0.1` 에만 열린다. 다른 기기에서 접속하게 하려면 `/api/judge`, `/api/session`, `/api/transcription-session` 앞에 인증을 먼저 넣어야 한다. 그대로 열면 누구나 내 키로 호출할 수 있다.
 - 대화 텍스트(AI 응답과 사용자 말의 전사)가 표정 판단을 위해 Jev 로 전송된다.
 - "말하는 도중에도 반응"을 켜면 마이크 소리가 OpenAI 의 전사용 연결에도 전송되고, 그만큼 전사 요금이 더 나온다.
 

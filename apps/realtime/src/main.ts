@@ -2,14 +2,12 @@ import type { AnalyzerInput, Judgment } from '@faceling/core/judgment';
 import type { TurnState } from '@faceling/core/compositor';
 import { LiveDirector, LiveFace, type DirectorStats, type LiveFrame } from '@faceling/core/live';
 import { REGION_KEYS, regionSpec, topAction, type Region } from '@faceling/core/regions';
-import { DogRig } from '@faceling/core/rigs/dog';
-import { RobotRig } from '@faceling/core/rigs/robot';
-import { VrmRig } from '@faceling/core/rigs/vrm';
+import { DogRig, RobotRig, VrmRig } from '@faceling/rigs';
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VARIANTS } from '@faceling/core/weights';
 import * as THREE from 'three';
-import { RealtimeConnection } from './realtime';
+import { RealtimeConnection } from '@faceling/openai-realtime';
 import { DEMO_LINES, Simulation } from './simulate';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;

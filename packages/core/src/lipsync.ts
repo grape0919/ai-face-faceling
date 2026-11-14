@@ -1,4 +1,4 @@
-import type { MouthFeatures } from './compositor';
+import type { MouthFeatures } from './compositor.js';
 
 /**
  * 재생되는 음성의 진폭과 대역 에너지로 입 모양을 추정한다.

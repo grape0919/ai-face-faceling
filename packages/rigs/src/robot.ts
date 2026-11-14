@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { ARKIT_52, type FacePose } from '../mapping';
+import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
 
 /**
  * 코드로 그린 로봇 얼굴. 머리는 3D 도형이고, 얼굴은 머리 앞면의 화면에 2D 로 그린다.

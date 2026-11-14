@@ -1,7 +1,7 @@
-import { clamp } from './judgment';
-import { add, applyActions, emptyPose, gazeShapes, type FacePose } from './mapping';
-import type { Region } from './regions';
-import { VARIANTS, zeroWeights, type Gesture, type Weights } from './weights';
+import { clamp } from './judgment.js';
+import { add, applyActions, emptyPose, gazeShapes, type FacePose } from './mapping.js';
+import type { Region } from './regions.js';
+import { VARIANTS, zeroWeights, type Gesture, type Weights } from './weights.js';
 
 /** 재생 중인 AI 음성에서 뽑은 입 모양 값. 0~1. */
 export interface MouthFeatures {

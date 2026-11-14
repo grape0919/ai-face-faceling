@@ -1,5 +1,5 @@
-import { clamp, type Judgment } from './judgment';
-import { REGION_KEYS, regionSpec, type Region } from './regions';
+import { clamp, type Judgment } from './judgment.js';
+import { REGION_KEYS, regionSpec, type Region } from './regions.js';
 
 /**
  * 엔진이 보간하는 단위. 부위의 동작 하나이며, 좌우가 있는 동작은 방향별로 나뉜다.

@@ -5,11 +5,14 @@
   "type": "module",
   "description": "OpenAI Realtime API 음성 대화에 실시간 표정을 붙이는 예제",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "tsx --conditions=faceling-source server.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@faceling/core": "*",
+    "@faceling/openai-realtime": "*",
+    "@faceling/rigs": "*",
+    "@faceling/server": "*",
     "@pixiv/three-vrm": "^3.5.5",
     "three": "^0.187.0"
   },

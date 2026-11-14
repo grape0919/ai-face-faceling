@@ -1,4 +1,4 @@
-import { VARIANTS, type Weights } from './weights';
+import { VARIANTS, type Weights } from './weights.js';
 
 /** 엔진 출력의 한 프레임. shapes 는 ARKit 52 blendshape 이름을 쓴다. 각도는 라디안. */
 export interface FacePose {

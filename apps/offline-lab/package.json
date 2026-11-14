@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "session": "tsx src/pipeline/cli.ts",
+    "session": "tsx --conditions=faceling-source src/pipeline/cli.ts",
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@faceling/core": "*",
+    "@faceling/rigs": "*",
     "@anthropic-ai/sdk": "^1.8.0",
     "@pixiv/three-vrm": "^3.5.5",
     "three": "^0.187.0",
