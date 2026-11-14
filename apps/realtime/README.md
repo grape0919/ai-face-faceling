@@ -23,7 +23,7 @@ npm run rt:dev
 브라우저에서 http://localhost:5174 를 연다. 처음 열면 세 단계 안내가 나온다.
 
 1. 소개
-2. 얼굴(로봇, 강아지, 3D 모델)과 목소리 고르기
+2. 얼굴(페이스링, 로봇, 강아지, 3D 모델)과 목소리 고르기. 처음 오면 로고와 같은 모양의 페이스링이 골라져 있다
 3. "마이크 허용하고 대화 시작" 또는 "텍스트로만 대화할게요"
 
 다시 열면 안내 없이 대화 화면이 나오고, "대화 시작"을 누르면 연결한다. 안내를 다시 보려면 주소 끝에 `?onboarding` 을 붙인다. 고른 얼굴과 목소리, 안내를 마쳤는지는 브라우저의 localStorage 에 남는다.
@@ -50,7 +50,7 @@ OpenAI 키가 없으면 "예시 대화 보기"로 표정 경로를 볼 수 있�
                           LiveDirector ──절마다──> 서버 /api/judge ──> Jev
                                 │   (부위별 동작 + 세기)
                                 ▼
-                            LiveFace ──매 프레임──> ARKit 52 값 ──> 로봇·강아지 얼굴
+                            LiveFace ──매 프레임──> ARKit 52 값 ──> 페이스링·로봇·강아지 얼굴
 ```
 
 1. **절로 끊기.** AI 응답 텍스트가 조각으로 올 때마다 문장 끝과 쉼표에서 끊는다(15~40자).
@@ -88,7 +88,7 @@ public/brand/      로고(심볼, 조합형)
 |---|---|
 | `@faceling/core` | 표정 엔진(`live.ts`, `compositor.ts`, `clauses.ts`) |
 | `@faceling/openai-realtime` | OpenAI Realtime 어댑터(`connection.ts`: WebRTC 연결, 사건 → LiveDirector)와 말하는 도중의 전사를 받는 두 번째 연결(`transcriber.ts`) |
-| `@faceling/rigs` | 로봇·강아지 얼굴과 VRM 연결 |
+| `@faceling/rigs` | 페이스링·로봇·강아지 얼굴과 VRM 연결 |
 | `@faceling/server` | `/api/session`, `/api/transcription-session`, `/api/judge` 처리기 |
 
 개발 중에는 패키지를 빌드하지 않는다. `npm run rt:dev` 는 `faceling-source` 조건으로 각 패키지의 TS 원본을 바로 읽는다. 브라우저 쪽 패키지는 고친 뒤 화면을 새로 고치면, `@faceling/server` 는 서버를 다시 시작하면 반영된다.

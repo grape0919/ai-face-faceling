@@ -8,6 +8,7 @@ import { REGION_KEYS, regionSpec, topAction } from '../shared/regions';
 import { SESSION_FORMAT, type Session } from '../shared/types';
 import { SessionPlayer } from './player';
 import { DogRig } from './rig-dog';
+import { FacelingRig } from './rig-faceling';
 import { RobotRig } from './rig-robot';
 import { VrmRig } from './rig-vrm';
 
@@ -42,13 +43,13 @@ scene.add(lookTarget);
 const player = new SessionPlayer();
 let session: Session | null = null;
 let engine: FaceEngine | null = null;
-const AVATARS = ['robot', 'dog', 'vrm'] as const;
+const AVATARS = ['faceling', 'robot', 'dog', 'vrm'] as const;
 type Avatar = (typeof AVATARS)[number];
-let avatar: Avatar = AVATARS.find((a) => a === params.get('avatar')) ?? 'robot';
+let avatar: Avatar = AVATARS.find((a) => a === params.get('avatar')) ?? 'faceling';
 /** 코드로 그린 얼굴들. 처음 고를 때 만든다. */
-const drawn: { robot?: RobotRig; dog?: DogRig } = {};
+const drawn: { faceling?: FacelingRig; robot?: RobotRig; dog?: DogRig } = {};
 let vrmRig: VrmRig | null = null;
-let rig: RobotRig | DogRig | VrmRig | null = null;
+let rig: FacelingRig | RobotRig | DogRig | VrmRig | null = null;
 let vrm: VRM | null = null;
 let level: Level = (LEVELS.find((l) => l === params.get('level')) ?? 'L1') as Level;
 let lastFrame: FaceFrame | null = null;
@@ -86,7 +87,13 @@ async function loadVrm(source: string): Promise<void> {
 
 /** 고른 얼굴만 장면에 보이게 하고 카메라를 맞춘다. */
 function showAvatar(): void {
-  if (avatar === 'robot') {
+  if (avatar === 'faceling') {
+    if (!drawn.faceling) scene.add((drawn.faceling = new FacelingRig()).object);
+    const c = drawn.faceling.headCenter;
+    camera.position.set(c.x, c.y, c.z + 1.35);
+    camera.lookAt(c);
+    rig = drawn.faceling;
+  } else if (avatar === 'robot') {
     if (!drawn.robot) scene.add((drawn.robot = new RobotRig()).object);
     const c = drawn.robot.headCenter;
     camera.position.set(c.x, c.y + 0.02, c.z + 1.35);
@@ -105,6 +112,7 @@ function showAvatar(): void {
     camera.lookAt(head.x, head.y + 0.03, head.z);
     rig = vrmRig;
   }
+  if (drawn.faceling) drawn.faceling.object.visible = avatar === 'faceling';
   if (drawn.robot) drawn.robot.object.visible = avatar === 'robot';
   if (drawn.dog) drawn.dog.object.visible = avatar === 'dog';
   if (vrm) vrm.scene.visible = avatar === 'vrm';
@@ -134,7 +142,7 @@ async function pickDefaultVrm(): Promise<string> {
 function refreshStatus(): void {
   if (!session) return;
   const segments = session.turns.reduce((n, t) => n + t.segments.length, 0);
-  const notes = { robot: '코드로 그린 로봇 얼굴', dog: '코드로 그린 강아지 얼굴', arkit: 'ARKit 표정 모델', preset: 'VRM 표준 표정 모델(표현력 제한)' };
+  const notes = { faceling: '코드로 그린 Faceling 얼굴', robot: '코드로 그린 로봇 얼굴', dog: '코드로 그린 강아지 얼굴', arkit: 'ARKit 표정 모델', preset: 'VRM 표준 표정 모델(표현력 제한)' };
   const rigNote = rig ? notes[rig.mode] : '모델 불러오는 중';
   setStatus(`분석 ${session.analyzer}, 정렬 ${session.aligner}, 구간 ${segments}개. ${rigNote}`);
 }

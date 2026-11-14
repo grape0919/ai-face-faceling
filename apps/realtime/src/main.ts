@@ -2,7 +2,7 @@ import type { AnalyzerInput, Judgment } from '@faceling/core/judgment';
 import type { TurnState } from '@faceling/core/compositor';
 import { LiveDirector, LiveFace, type DirectorStats, type LiveFrame } from '@faceling/core/live';
 import { REGION_KEYS, regionSpec, topAction, type Region } from '@faceling/core/regions';
-import { DogRig, RobotRig, VrmRig } from '@faceling/rigs';
+import { DogRig, FacelingRig, RobotRig, VrmRig } from '@faceling/rigs';
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VARIANTS } from '@faceling/core/weights';
@@ -32,9 +32,10 @@ const store = {
 };
 
 // ── 얼굴 종류 ─────────────────────────────────────────────
-const AVATARS = ['robot', 'dog', 'vrm'] as const;
+const AVATARS = ['faceling', 'robot', 'dog', 'vrm'] as const;
 type Avatar = (typeof AVATARS)[number];
 const AVATAR_INFO: Record<Avatar, { name: string; desc: string }> = {
+  faceling: { name: '페이스링', desc: '로고와 같은 얼굴. 눈과 입만으로 표정을 지어요' },
   robot: { name: '로봇', desc: '화면에 눈과 입이 그려지는 작은 로봇' },
   dog: { name: '강아지', desc: '동그란 눈과 큰 귀를 가진 강아지' },
   vrm: { name: '3D 모델', desc: 'VRM 3D 모델. 처음 고르면 예제 모델을 내려받아요' },
@@ -67,7 +68,7 @@ const state = {
   step: 1,
   /** 대화 중에 "캐릭터 변경"으로 2단계에 들어온 것인지. 그때의 원래 값. */
   changing: null as { avatar: Avatar; voice: string } | null,
-  avatar: (isAvatar(params.get('avatar')) ? params.get('avatar') : isAvatar(store.get('avatar')) ? store.get('avatar') : 'robot') as Avatar,
+  avatar: (isAvatar(params.get('avatar')) ? params.get('avatar') : isAvatar(store.get('avatar')) ? store.get('avatar') : 'faceling') as Avatar,
   voice: store.get('voice') ?? '',
   conn: 'off' as 'off' | 'connecting' | 'on',
   connectedAt: 0,
@@ -91,7 +92,10 @@ const key = new THREE.DirectionalLight(0xffffff, 2.2);
 key.position.set(0.6, 1.2, 1.5);
 scene.add(key);
 
-const rigs: { robot?: RobotRig; dog?: DogRig } = {};
+/** 코드로 그린 얼굴들. 처음 고를 때 만든다. */
+type DrawnAvatar = Exclude<Avatar, 'vrm'>;
+const DRAWN: DrawnAvatar[] = ['faceling', 'robot', 'dog'];
+const rigs: { faceling?: FacelingRig; robot?: RobotRig; dog?: DogRig } = {};
 
 /**
  * 3D 얼굴(VRM). 직접 고른 파일이 없으면 three-vrm 의 예제 모델을 실행 중에 불러온다.
@@ -146,7 +150,8 @@ function showModelInfo(label: string): void {
   $('model-info').textContent = `${name}${author ? ` (${author})` : ''}. ${ability}`;
 }
 
-function ensureRig(which: 'robot' | 'dog'): RobotRig | DogRig {
+function ensureRig(which: DrawnAvatar): FacelingRig | RobotRig | DogRig {
+  if (which === 'faceling') return rigs.faceling ?? (scene.add((rigs.faceling = new FacelingRig()).object), rigs.faceling);
   if (which === 'robot') return rigs.robot ?? (scene.add((rigs.robot = new RobotRig()).object), rigs.robot);
   return rigs.dog ?? (scene.add((rigs.dog = new DogRig()).object), rigs.dog);
 }
@@ -165,8 +170,7 @@ function frameAvatar(which: Avatar): void {
     camera.position.set(c.x, c.y + (which === 'robot' ? 0.02 : 0), c.z + 1.35);
     camera.lookAt(c.x, c.y - (which === 'robot' ? 0.03 : 0), c.z);
   }
-  if (rigs.robot) rigs.robot.object.visible = which === 'robot';
-  if (rigs.dog) rigs.dog.object.visible = which === 'dog';
+  for (const drawn of DRAWN) if (rigs[drawn]) rigs[drawn].object.visible = which === drawn;
   if (vrm) vrm.scene.visible = which === 'vrm';
 }
 
@@ -192,7 +196,7 @@ function takeThumbnails(): void {
   const small = document.createElement('canvas');
   small.width = small.height = 192;
   const ctx = small.getContext('2d');
-  for (const which of ['robot', 'dog'] as const) {
+  for (const which of DRAWN) {
     ensureRig(which).apply(frame);
     frameAvatar(which);
     renderer.render(scene, camera);

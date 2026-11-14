@@ -6,7 +6,7 @@
 
 > Expressions drawn from what is said, not how it sounds.
 
-Faceling is an expression engine for voice AI. It reads the **text** of the conversation — what the AI says and what the user says — decides what each part of the face should do, and outputs ARKit 52 blendshape values in real time. Your renderer takes those values and moves whatever face you like: a robot, a dog, a VRM avatar.
+Faceling is an expression engine for voice AI. It reads the **text** of the conversation — what the AI says and what the user says — decides what each part of the face should do, and outputs ARKit 52 blendshape values in real time. Your renderer takes those values and moves whatever face you like: the built-in Faceling face, a robot, a dog, a VRM avatar.
 
 ## What it does
 
@@ -14,7 +14,7 @@ Faceling is an expression engine for voice AI. It reads the **text** of the conv
 - **Listening face.** It reacts while the user is still talking. It does not mirror the user; it reacts the way a caring listener would.
 - **Context aware.** The same "I see." becomes a smile after good news and a concerned look after sad news. A short "Really?" takes its feeling from what comes right after it.
 - **Per-part judgment.** For six parts of the face — brows, eyes, gaze, cheeks and nose, mouth, head — the judgment model picks an action directly. Plain, factual lines leave the face at rest.
-- **Any face.** The output is ARKit 52 values, so it fits any renderer. A code-drawn robot and dog are included, and VRM models work too.
+- **Any face.** The output is ARKit 52 values, so it fits any renderer. Three code-drawn faces are included (the Faceling face from the logo, a robot and a dog), and VRM models work too.
 - **Lightweight.** No server-side video. Each clause costs one API call of about 0.2–0.3 s.
 
 ## Try it
@@ -38,7 +38,7 @@ npm run rt:dev
 
 Open http://localhost:5174. A three-step intro asks you to pick a face and a voice, then press "마이크 허용하고 대화 시작" (allow microphone and start) or "텍스트로만 대화할게요" (text only). Without an OpenAI key you get "예시 대화 보기" (watch a sample conversation) instead, which drives the face without sound. Press `` ` `` or add `?dev` to the URL to open the developer panel. The demo UI is in Korean for now.
 
-Pick a face in the intro or later with "캐릭터 변경" (change character): 로봇 (robot), 강아지 (dog) and 3D 모델 (3D model). The 3D option loads pixiv's sample model [VRM1_Constraint_Twist_Sample](https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models) (© 2022 pixiv Inc., [VRM Public License 1.0](https://vrm.dev/licenses/1.0/)) from the web at runtime; it is not included in this repository. That model only has the standard VRM expressions (happy, sad, surprised and so on), so its face looks simpler than the robot and dog. Load your own VRM with ARKit blendshapes from the developer panel → "내 VRM 불러오기" (load my VRM) to see every expression.
+Pick a face in the intro or later with "캐릭터 변경" (change character): 페이스링 (the Faceling face, the default), 로봇 (robot), 강아지 (dog) and 3D 모델 (3D model). The 3D option loads pixiv's sample model [VRM1_Constraint_Twist_Sample](https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models) (© 2022 pixiv Inc., [VRM Public License 1.0](https://vrm.dev/licenses/1.0/)) from the web at runtime; it is not included in this repository. That model only has the standard VRM expressions (happy, sad, surprised and so on), so its face looks simpler than the robot and dog. Load your own VRM with ARKit blendshapes from the developer panel → "내 VRM 불러오기" (load my VRM) to see every expression.
 
 ## Add it to your app
 
@@ -49,7 +49,7 @@ Faceling is split into four packages. Use only the ones you need.
 | [`@faceling/core`](packages/core) | anywhere | The engine: `LiveDirector` (takes conversation events, judges clauses, schedules expressions) and `LiveFace` (one frame of ARKit 52 values per call). No dependencies |
 | [`@faceling/server`](packages/server) | Node 20+ | Request handlers that keep your keys on the server: Jev judgment relay and OpenAI Realtime ephemeral keys |
 | [`@faceling/openai-realtime`](packages/openai-realtime) | browser | Adapter that connects to the OpenAI Realtime API over WebRTC and feeds its events to the engine |
-| [`@faceling/rigs`](packages/rigs) | browser | Ready-made three.js faces: robot, dog and a VRM adapter. `three` is a peer dependency |
+| [`@faceling/rigs`](packages/rigs) | browser | Ready-made three.js faces: the Faceling face, robot, dog and a VRM adapter. `three` is a peer dependency |
 
 ```bash
 npm install @faceling/core @faceling/server @faceling/openai-realtime @faceling/rigs three
@@ -90,7 +90,7 @@ The handlers are plain `Request → Response` functions, so they fit other frame
 ```ts
 import { LiveDirector, LiveFace, createRemoteJudge } from '@faceling/core';
 import { RealtimeConnection } from '@faceling/openai-realtime';
-import { RobotRig } from '@faceling/rigs';
+import { FacelingRig } from '@faceling/rigs';
 import * as THREE from 'three';
 
 // The engine: judges each clause through your server (/api/judge) and times it to the audio
@@ -106,25 +106,25 @@ const connection = new RealtimeConnection(director, {
 });
 document.querySelector('#start')!.addEventListener('click', () => connection.connect({ greet: true }));
 
-// The face: any renderer that takes ARKit 52 values. Here, the built-in robot.
+// The face: any renderer that takes ARKit 52 values. Here, the built-in Faceling face.
 const renderer = new THREE.WebGLRenderer({ canvas: document.querySelector('canvas')!, antialias: true });
 const scene = new THREE.Scene();
 scene.add(new THREE.AmbientLight(0xffffff, 1.3), new THREE.DirectionalLight(0xffffff, 2.2));
 const camera = new THREE.PerspectiveCamera(24, 1, 0.1, 20);
-camera.position.set(0, 1.47, 1.35);
-camera.lookAt(0, 1.42, 0);
-const robot = new RobotRig();
-scene.add(robot.object);
+camera.position.set(0, 1.45, 1.35);
+camera.lookAt(0, 1.45, 0);
+const rig = new FacelingRig();
+scene.add(rig.object);
 
 renderer.setAnimationLoop(() => {
-  robot.apply(face.update(clock(), connection.mouth())); // one frame: ARKit 52 + head + gaze
+  rig.apply(face.update(clock(), connection.mouth())); // one frame: ARKit 52 + head + gaze
   renderer.render(scene, camera);
 });
 ```
 
 If your server lives elsewhere, pass the URLs: `createRemoteJudge({ url })` and `new RealtimeConnection(director, callbacks, { sessionUrl, transcriptionSessionUrl, headers })`. The adapter's status messages and default greeting are in Korean for now; pass `greeting` to change what the AI is told to open with.
 
-To drive your own face instead of the robot, read the frame yourself. `face.update(now, mouth)` returns `{ shapes, head, gaze }`: `shapes` maps ARKit 52 blendshape names to 0–1, `head` holds `pitch`, `yaw` and `roll` in radians, and `gaze` holds `x` and `y` from −1 to 1. For a VRM model, load it with `@pixiv/three-vrm` and use `VrmRig` from `@faceling/rigs`.
+To drive your own face instead of the built-in one, read the frame yourself. `face.update(now, mouth)` returns `{ shapes, head, gaze }`: `shapes` maps ARKit 52 blendshape names to 0–1, `head` holds `pitch`, `yaw` and `roll` in radians, and `gaze` holds `x` and `y` from −1 to 1. For a VRM model, load it with `@pixiv/three-vrm` and use `VrmRig` from `@faceling/rigs`.
 
 ### Other voice services
 
@@ -149,7 +149,7 @@ Lip sync goes in through the second argument of `face.update()`. `MouthAnalyser`
 | Folder | Contents |
 |---|---|
 | [`packages/core`](packages/core) | The engine: face parts and actions, questions sent to the judgment model, action → ARKit 52 mapping, layer compositing, real-time scheduling |
-| [`packages/rigs`](packages/rigs) | The robot and dog faces and the VRM adapter (three.js) |
+| [`packages/rigs`](packages/rigs) | The Faceling, robot and dog faces and the VRM adapter (three.js) |
 | [`packages/openai-realtime`](packages/openai-realtime) | Browser adapter for the OpenAI Realtime API |
 | [`packages/server`](packages/server) | Node handlers: Jev relay and ephemeral keys |
 | [`apps/realtime`](apps/realtime) | Real-time demo built on the packages above |
@@ -198,6 +198,6 @@ The diagrams are generated by `docs/diagrams/build.mjs`. After editing it, run `
 ## License
 
 - Code: [MIT](LICENSE)
-- Designs of the two built-in faces (robot and dog): [CC BY-NC 4.0](packages/rigs/LICENSE.md). Free for non-commercial use; using them as the face of a commercial product requires permission. Faces you design yourself are not affected.
+- Designs of the three built-in faces (Faceling, robot and dog): [CC BY-NC 4.0](packages/rigs/LICENSE.md). Free for non-commercial use; using them as the face of a commercial product requires permission. Faces you design yourself are not affected.
 
 © 2026 RED BRIDGE DEV

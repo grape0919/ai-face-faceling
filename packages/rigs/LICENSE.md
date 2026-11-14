@@ -1,7 +1,7 @@
 # 얼굴 디자인의 라이선스 / License for the character designs
 
-이 폴더에는 Faceling 의 기본 얼굴 두 가지(로봇, 강아지)가 들어 있다.
-이 두 캐릭터의 **생김새**(모양, 색, 비율, 표정을 그리는 방식을 합친 전체 디자인)는 저장소의 나머지 코드와 조건이 다르다.
+이 폴더에는 Faceling 의 기본 얼굴 세 가지(페이스링, 로봇, 강아지)가 들어 있다.
+이 세 캐릭터의 **생김새**(모양, 색, 비율, 표정을 그리는 방식을 합친 전체 디자인)는 저장소의 나머지 코드와 조건이 다르다.
 
 - 저작권: © 2026 RED BRIDGE DEV
 - 라이선스: [Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/)
@@ -13,7 +13,7 @@
 
 ## 허락이 필요한 것
 
-- 이 두 캐릭터(또는 알아볼 수 있을 만큼 비슷하게 고친 것)를 상업 제품이나 유료 서비스의 얼굴로 쓰기
+- 이 세 캐릭터(또는 알아볼 수 있을 만큼 비슷하게 고친 것)를 상업 제품이나 유료 서비스의 얼굴로 쓰기
 
 ## 이 조건이 적용되지 않는 것
 
@@ -21,10 +21,14 @@
 - **얼굴을 움직이는 방법.** ARKit 52 값을 받아 그리는 구조, 눈꺼풀·입 모양을 계산하는 방식 같은 일반적인 기법은 MIT 라이선스의 나머지 코드와 마찬가지로 자유롭게 쓸 수 있다.
 - 저장소의 다른 모든 코드. 루트의 `LICENSE`(MIT)를 따른다.
 
+페이스링은 Faceling 로고와 같은 조형이다. 로고 자체(이름, 심볼, 조합형)는 이 라이선스로 허락하는 대상이 아니며, 다른 제품이나 서비스의 표시로 쓸 수 없다.
+
 ---
 
-This folder contains Faceling's two built-in faces (a robot and a dog). Their **character designs** — the overall look made up of shapes, colours, proportions and the way expressions are drawn — are © 2026 RED BRIDGE DEV and licensed under CC BY-NC 4.0, not under the MIT License that covers the rest of the repository.
+This folder contains Faceling's three built-in faces (the Faceling face, a robot and a dog). Their **character designs** — the overall look made up of shapes, colours, proportions and the way expressions are drawn — are © 2026 RED BRIDGE DEV and licensed under CC BY-NC 4.0, not under the MIT License that covers the rest of the repository.
 
-You may use and adapt these two characters for personal, educational, research, demo and other non-commercial purposes with attribution. Using them, or recognisable derivatives, as the face of a commercial product or paid service requires permission.
+You may use and adapt these three characters for personal, educational, research, demo and other non-commercial purposes with attribution. Using them, or recognisable derivatives, as the face of a commercial product or paid service requires permission.
 
 Faces you design yourself are yours, even if you used these files as a starting point for the technique. The general techniques (consuming ARKit 52 values, computing eyelid and mouth shapes) are free to use under the MIT License.
+
+The Faceling face shares its look with the Faceling logo. The logo itself (name, symbol and lockup) is not licensed here and may not be used to brand other products or services.
