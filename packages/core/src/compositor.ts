@@ -39,8 +39,11 @@ export interface Expression {
   weights: Weights;
   /** 턴 상태가 섞인 정도. 상태가 바뀔 때 부드럽게 넘어간다. */
   turn: Record<TurnState, number>;
-  /** 순간 동작의 지금 값. nod 는 숙이는 각도(라디안), shake 는 좌우로 젓는 각도(부호 있음), flash 는 눈썹을 번쩍 올리는 세기. */
-  gesture: { nod: number; shake: number; flash: number };
+  /**
+   * 순간 동작의 지금 값. nod 는 숙이는 각도(라디안), shake 는 좌우로 젓는 각도(부호 있음),
+   * flash 는 눈썹을 번쩍 올리는 세기, winkL/winkR 은 그쪽 눈을 감는 세기 0~1(캐릭터 기준 왼쪽·오른쪽).
+   */
+  gesture: { nod: number; shake: number; flash: number; winkL: number; winkR: number };
   /** 말하는 동안의 입 모양. 말하는 정도가 이미 곱해져 있어, 말하지 않으면 0 이다. */
   mouth: MouthFeatures;
   /** 깜빡임 0~1 */
@@ -60,6 +63,7 @@ const DYNAMICS: Record<Region, { attack: number; release: number }> = {
   cheeks: { attack: 0.22, release: 1.0 },
   mouth: { attack: 0.2, release: 1.1 },
   head: { attack: 0.3, release: 0.8 },
+  arm: { attack: 0.35, release: 0.7 },
 };
 /** 표정이 시작될 때 눈썹과 눈이 잠깐 더 크게 움직였다가 가라앉는다. */
 const ONSET_BOOST = 0.3;
@@ -103,14 +107,22 @@ export class Compositor {
       this.turnWeight[state] = approach(this.turnWeight[state], state === input.turn ? 1 : 0, dt, TURN_BLEND);
     }
 
-    const gesture = { nod: 0, shake: 0, flash: 0 };
+    const gesture = { nod: 0, shake: 0, flash: 0, winkL: 0, winkR: 0 };
     for (const g of input.gestures) {
-      const k = bell((t - g.t) / g.dur) * g.amp;
+      const x = (t - g.t) / g.dur;
+      const k = bell(x) * g.amp;
       if (k === 0) continue;
       if (g.type === 'nod') gesture.nod += k;
-      else if (g.type === 'shake') gesture.shake += k * Math.sin(((t - g.t) / g.dur) * Math.PI * 4);
-      else gesture.flash += k;
+      else if (g.type === 'shake') gesture.shake += k * Math.sin(x * Math.PI * 4);
+      else if (g.type === 'wink') {
+        // 빨리 감고, 잠깐 멈췄다가, 천천히 뜬다
+        const closed = g.amp * (x < 0.2 ? x / 0.2 : x < 0.55 ? 1 : 1 - (x - 0.55) / 0.45);
+        if (g.side === 'R') gesture.winkR += closed;
+        else gesture.winkL += closed;
+      } else gesture.flash += k;
     }
+    gesture.winkL = Math.min(1, gesture.winkL);
+    gesture.winkR = Math.min(1, gesture.winkR);
 
     const speaking = this.turnWeight.speaking;
     const m = input.mouth;

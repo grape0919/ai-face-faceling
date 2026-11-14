@@ -37,6 +37,14 @@ export function facePose(e: Expression): FacePose {
   add(pose, 'browInnerUp', e.gesture.flash);
   add(pose, 'browOuterUpLeft', e.gesture.flash);
   add(pose, 'browOuterUpRight', e.gesture.flash);
+  // 윙크: 한쪽 눈을 감고, 같은 쪽 볼과 입꼬리가 따라 올라간다
+  for (const [side, w] of [['Left', e.gesture.winkL], ['Right', e.gesture.winkR]] as const) {
+    if (w <= 0) continue;
+    add(pose, `eyeBlink${side}`, w);
+    add(pose, `cheekSquint${side}`, 0.45 * w);
+    add(pose, `mouthSmile${side}`, 0.35 * w);
+    add(pose, `browDown${side}`, 0.2 * w);
+  }
 
   // 4. 립싱크. 말하는 동안 입은 소리가 먼저다. 다물어야 만들 수 있는 모양은 입이 벌어진 만큼 줄인다.
   const { jaw, funnel, stretch } = e.mouth;

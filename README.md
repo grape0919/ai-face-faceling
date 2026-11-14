@@ -159,7 +159,15 @@ renderer.setAnimationLoop(() => {
 });
 ```
 
-To drive your own body, read `frame.expression` the same way. `bodyFeelings(expression)` from `@faceling/rigs` condenses the actions into a few feelings (`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`) if that is easier to map. Its coefficients are a first draft. The judgment itself is still asked in face terms; if a body needs moves no face has (leaning in, flinching back), adding a body part to the questions is the next step.
+To drive your own body, read `frame.expression` the same way. `bodyFeelings(expression)` from `@faceling/rigs` condenses the actions into a few feelings (`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`) if that is easier to map. Its coefficients are a first draft.
+
+#### Doing what it is asked
+
+"Wink at me." "Move your arm to the right." These need no tool calling. The judgment model already decides what each part does from what is said, so a deliberate move is just another option: when the AI replies "Sure, *wink*!" or "Okay, all the way to the right!", the same per-clause judgment picks `eyes.wink` or `arm.right`, and the move lands the moment that clause is heard. Lines that only talk about a move ("I can't wink", "right is the hand you eat with") are left alone.
+
+- **Body-specific parts.** Parts a face does not have are marked `optional` in `regions.ts` (the robot arm's `arm`: `right`, `left`, `up`, `down`, `forward`, `wave`). Set `director.parts = ['arm']` (`ArmRig.parts`) and they are asked only while the AI speaks.
+- **Stricter than feelings.** Deliberate moves only start above 50 % probability and are full at 85 %, regardless of how strong the feeling is.
+- **The AI must know its body.** Otherwise it says "I can't move". `createSessionHandler({ characters: { arm: '…' } })` appends a body description chosen by the `character` the browser sends (`connect({ character: 'arm' })`). The demo tells the arm what it can do and to answer with a short "here it goes" line, and tells faces they have no arms.
 
 ### Other voice services
 

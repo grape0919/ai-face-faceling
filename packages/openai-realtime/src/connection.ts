@@ -33,10 +33,12 @@ export interface ConnectOptions {
   withoutMic?: boolean;
   /** 연결되자마자 AI 가 먼저 인사하게 한다. */
   greet?: boolean;
+  /** 캐릭터(몸) 이름. 서버가 이 이름으로 AI 에게 자기 몸을 알려 준다(@faceling/server 의 characters 옵션). */
+  character?: string;
 }
 
 export interface RealtimeConnectionOptions {
-  /** 대화용 임시 키를 발급하는 내 서버 주소. 기본값 '/api/session'. 본문으로 { voice } 를 보낸다. */
+  /** 대화용 임시 키를 발급하는 내 서버 주소. 기본값 '/api/session'. 본문으로 { voice, character } 를 보낸다. */
   sessionUrl?: string;
   /** 말하는 도중의 전사에 쓸 임시 키를 발급하는 주소. 기본값 '/api/transcription-session'. */
   transcriptionSessionUrl?: string;
@@ -88,7 +90,7 @@ export class RealtimeConnection {
     const tokenRes = await fetch(this.options.sessionUrl ?? '/api/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.options.headers },
-      body: JSON.stringify({ voice: options.voice }),
+      body: JSON.stringify({ voice: options.voice, character: options.character }),
     });
     const token = (await tokenRes.json()) as { value?: string; model?: string; error?: string };
     if (!tokenRes.ok || !token.value) throw new Error(token.error ?? '임시 키를 받지 못했습니다');

@@ -15,6 +15,10 @@ import type { Expression } from '@faceling/core/compositor';
  * - 시선 → 회전대와 손목이 그쪽을 향한다
  * - 듣기 → 다가와 귀 기울이고, 생각 중 → 고개를 돌리고 집게를 까딱인다, 말하기 → 집게와 불빛이 말에 맞춰 움직인다
  * - 끄덕임·가로젓기 → 손목 까딱임과 좌우 흔들기
+ *
+ * 감정과 별개로, AI 가 실제로 하는 팔 동작(arm 부위의 판단: 오른쪽, 왼쪽, 위, 아래, 앞으로, 흔들기)은
+ * 감정 자세 위에 덮어쓴다. 윙크는 눈이 없으니 집게를 찡긋하고 불빛을 깜빡이는 것으로 대신한다.
+ * 이 리그로 판단을 받으려면 LiveDirector.parts 에 'arm' 을 넣는다.
  */
 
 /** 팔 길이(m) */
@@ -89,8 +93,42 @@ export function bodyFeelings(e: Expression) {
   };
 }
 
+/**
+ * 팔 동작(arm 부위의 판단)별 자세. 쉬는 자세에서 얼마나 움직이는지가 아니라 도착할 자세 자체다.
+ * 방향은 보는 사람 기준이다: right 는 화면 오른쪽. 회전대 각도는 받침이 놓인 방향(FACING, TURN_BACK)을 빼고 잰다.
+ */
+const reachYaw = (screenAngle: number): number => screenAngle - FACING - TURN_BACK;
+const COMMANDS: Record<string, (t: number) => Joints> = {
+  right: () => ({ yaw: reachYaw(1.45), shoulder: 0.42, elbow: 0.55, wrist: 0.3, roll: 0, claw: 0.3 }),
+  left: () => ({ yaw: reachYaw(-1.0), shoulder: 0.42, elbow: 0.55, wrist: 0.3, roll: 0, claw: 0.3 }),
+  up: () => ({ yaw: reachYaw(0.35), shoulder: -0.08, elbow: 0.22, wrist: 0.0, roll: 0, claw: 0.6 }),
+  down: () => ({ yaw: reachYaw(0.45), shoulder: 0.55, elbow: 1.5, wrist: 0.9, roll: 0, claw: 0.2 }),
+  forward: () => ({ yaw: reachYaw(0.05), shoulder: 0.5, elbow: 0.75, wrist: 0.35, roll: 0, claw: 0.7 }),
+  wave: (t) => ({
+    yaw: reachYaw(0.25) + 0.22 * Math.sin(t * 4.5),
+    shoulder: 0.0,
+    elbow: 0.45,
+    wrist: 0.2 + 0.15 * Math.sin(t * 9),
+    roll: 0.65 * Math.sin(t * 9),
+    claw: 0.8,
+  }),
+};
+
+/** 지금 가장 강한 팔 동작과 그 자세 */
+function commandPose(e: Expression, t: number): { weight: number; pose: Joints } {
+  let best = '';
+  let weight = 0;
+  for (const name of Object.keys(COMMANDS)) {
+    const v = e.weights[`arm.${name}`] ?? 0;
+    if (v > weight) [best, weight] = [name, v];
+  }
+  return { weight, pose: best ? COMMANDS[best]!(t) : { ...REST } };
+}
+
 export class ArmRig {
   readonly mode = 'arm' as const;
+  /** 얼굴 말고 이 몸이 가진 부위. LiveDirector.parts 에 넣으면 판단에 팔 동작 질문이 함께 간다. */
+  readonly parts = ['arm'] as const;
   readonly object = new THREE.Group();
   /** 카메라가 바라볼 중심 */
   readonly headCenter = new THREE.Vector3(0.04, 1.46, 0.08);
@@ -211,6 +249,16 @@ export class ArmRig {
     target.shoulder += 0.015 * Math.sin(t * 0.9) * (1 + 0.8 * speaking);
     target.yaw += 0.04 * Math.sin(t * 0.5) + 0.02 * Math.sin(t * 1.3 + 1);
 
+    // 의도한 동작("오른쪽으로 쭉!", "안녕히 가세요!"). 감정 자세 위에 덮어쓰고, 집게와 불빛의 감정은 남긴다.
+    const command = commandPose(e, t);
+    if (command.weight > 0.01) {
+      const k = Math.min(1, command.weight);
+      for (const name of ['yaw', 'shoulder', 'elbow', 'wrist', 'roll'] as const) {
+        target[name] += (command.pose[name] - target[name]) * k;
+      }
+      target.claw += command.pose.claw * k;
+    }
+
     // 관절이 목표를 부드럽게 따라간다
     const k = 1 - Math.exp(-dt / JOINT_TAU);
     for (const name of Object.keys(target) as (keyof Joints)[]) {
@@ -224,11 +272,15 @@ export class ArmRig {
     now.yaw += e.gesture.shake * 2.5;
     now.roll += e.gesture.shake * 1.5;
     now.claw += e.gesture.flash * 2.5;
+    // 눈이 없으니 윙크는 집게를 찡긋 오므리고 불빛을 깜빡이는 것으로 대신한다
+    const wink = Math.max(e.gesture.winkL, e.gesture.winkR);
+    now.claw -= 0.5 * wink;
+    now.roll += 0.25 * wink;
     this.pose(now);
 
-    // 불빛: 말할 때 소리에 맞춰 밝아지고, 처지면 어두워진다
-    const glow = 0.35 + 1.6 * e.mouth.jaw + 0.4 * f.happy + 0.3 * f.surprised - 0.25 * f.sad;
-    this.led.emissiveIntensity = clamp(glow, 0.08, 2.2);
+    // 불빛: 말할 때 소리에 맞춰 밝아지고, 처지면 어두워진다. 윙크하면 꺼졌다 켜진다.
+    const glow = (0.35 + 1.6 * e.mouth.jaw + 0.4 * f.happy + 0.3 * f.surprised - 0.25 * f.sad) * (1 - 0.95 * wink);
+    this.led.emissiveIntensity = clamp(glow, 0.02, 2.2);
   }
 
   private pose(j: Joints): void {

@@ -42,6 +42,8 @@ const AVATAR_INFO: Record<Avatar, { name: string; desc: string }> = {
   vrm: { name: '3D 모델', desc: 'VRM 3D 모델. 처음 고르면 예제 모델을 내려받아요' },
 };
 const isAvatar = (value: string | null): value is Avatar => AVATARS.includes(value as Avatar);
+/** 서버가 AI 에게 알려 줄 몸. 얼굴 캐릭터는 모두 'face' 다. */
+const bodyOf = (avatar: Avatar): 'face' | 'arm' => (avatar === 'arm' ? 'arm' : 'face');
 
 /** 목소리 칩에 먼저 보여 줄 것. 나머지는 개발자 패널에서 고른다. */
 const FEATURED_VOICES = ['marin', 'cedar', 'coral', 'ash'];
@@ -180,6 +182,8 @@ function frameAvatar(which: Avatar): void {
 
 function showAvatar(next: Avatar): void {
   state.avatar = next;
+  // 팔이 있는 몸이면 판단에 팔 동작 질문을 함께 보낸다
+  director.parts = next === 'arm' ? ['arm'] : [];
   if (next === 'vrm' && !vrm && !vrmLoading) {
     vrmLoading = loadVrm(SAMPLE_VRM, 'three-vrm 예제 모델')
       .then(() => {
@@ -367,6 +371,7 @@ async function startConversation(withoutMic: boolean): Promise<void> {
   try {
     await connection.connect({
       voice: state.voice,
+      character: bodyOf(state.avatar),
       withoutMic,
       greet: $<HTMLInputElement>('greet').checked,
       liveReactions: $<HTMLInputElement>('live-reactions').checked,
@@ -658,8 +663,8 @@ function closeChange(apply: boolean): void {
     return;
   }
   store.set('avatar', state.avatar);
-  // 목소리는 연결한 뒤에는 바꿀 수 없어서 다시 연결한다
-  if (state.conn === 'on' && state.voice !== before.voice) {
+  // 목소리와 AI 가 아는 자기 몸은 연결한 뒤에는 바꿀 수 없어서 다시 연결한다
+  if (state.conn === 'on' && (state.voice !== before.voice || bodyOf(state.avatar) !== bodyOf(before.avatar))) {
     const withoutMic = state.withoutMic;
     connection.disconnect();
     state.conn = 'off';

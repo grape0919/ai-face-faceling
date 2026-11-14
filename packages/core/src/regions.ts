@@ -22,6 +22,13 @@ export interface RegionSpec {
   /** 움직이지 않는 기본 선택지 */
   rest: string;
   actions: Record<string, ActionSpec>;
+  /**
+   * 그 몸을 가진 캐릭터에서만 묻는 부위(예: 로봇팔). 판단을 요청할 때 parts 로 넘겨야 질문에 들어가고,
+   * 넘기지 않으면 기본 선택지로 채운다. AI 가 말하는 구간에서만 묻는다.
+   */
+  optional?: boolean;
+  /** 감정 대신 "지금 실제로 하는 동작"을 묻는 부위의 질문. 있으면 기본 질문 문구 대신 쓴다. */
+  prompt?: string;
 }
 
 export const REGIONS = {
@@ -87,6 +94,13 @@ export const REGIONS = {
         label: '내리뜸',
         desc: 'Lids slightly lowered and heavy: calm tenderness, sadness, regret, tiredness.',
         listen: 'The user shares something sad or painful: a gentle, compassionate look.',
+      },
+      // 감정이 아니라 실제로 하는 동작. 순간 동작으로 처리한다(weights.ts 의 TRANSIENT).
+      wink: {
+        label: '윙크',
+        desc: 'One eye closes briefly in a playful wink: the assistant is actually winking right now, e.g. it was asked to wink and does it, or teases with a wink. Not for merely talking about winking.',
+        asymmetric: true,
+        listen: false,
       },
     },
   },
@@ -246,10 +260,45 @@ export const REGIONS = {
       },
     },
   },
+  /**
+   * 로봇팔. 감정이 아니라 AI 가 실제로 하는 팔 동작을 묻는다("오른쪽으로 쭉!", "안녕히 가세요!").
+   * 팔이 있는 캐릭터에서만 묻는다. 감정 몸짓(처짐, 들림)은 다른 부위의 판단에서 따로 나온다.
+   */
+  arm: {
+    label: '팔',
+    subject: "the assistant's robot arm",
+    rest: 'rest',
+    optional: true,
+    prompt:
+      'The assistant is a robot arm without a face and moves it while talking. Where should the arm go while the assistant says `current`? ' +
+      'Pick a movement only when the assistant is actually doing it right now, for example because the user asked and it agrees. ' +
+      'Otherwise pick rest; feelings are shown separately.',
+    actions: {
+      rest: {
+        label: '그대로',
+        desc: 'No deliberate movement. Includes describing or explaining a direction without moving, refusing, or saying it cannot.',
+        listen: 'Listening.',
+      },
+      right: { label: '오른쪽', desc: 'Reaching or swinging to the right right now.', listen: false },
+      left: { label: '왼쪽', desc: 'Reaching or swinging to the left right now.', listen: false },
+      up: { label: '위', desc: 'Raising the arm up right now: "up!", a cheer, a high reach.', listen: false },
+      down: { label: '아래', desc: 'Lowering the arm or reaching down right now.', listen: false },
+      forward: {
+        label: '앞으로',
+        desc: 'Reaching toward the user right now: offering something, "here you go", a high five, pointing at them.',
+        listen: false,
+      },
+      wave: { label: '흔들기', desc: 'Waving right now: hello, goodbye, cheering someone on.', listen: false },
+    },
+  },
 } as const satisfies Record<string, RegionSpec>;
 
 export type Region = keyof typeof REGIONS;
 export const REGION_KEYS = Object.keys(REGIONS) as Region[];
+/** 모든 캐릭터에서 묻는 얼굴 부위 */
+export const FACE_REGIONS = REGION_KEYS.filter((r) => !(REGIONS[r] as RegionSpec).optional);
+/** 그 몸을 가진 캐릭터에서만 묻는 부위 */
+export const OPTIONAL_REGIONS = REGION_KEYS.filter((r) => (REGIONS[r] as RegionSpec).optional);
 
 /** 부위별 선택지 확률. 선택지 이름 → 0~1, 합은 1 근처. */
 export type RegionProbs = Record<Region, Record<string, number>>;

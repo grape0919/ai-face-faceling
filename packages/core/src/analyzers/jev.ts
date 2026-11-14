@@ -1,4 +1,4 @@
-import { REGION_KEYS, regionSpec, type RegionProbs } from '../regions.js';
+import { FACE_REGIONS, OPTIONAL_REGIONS, regionSpec, restProbs, type Region } from '../regions.js';
 import { clamp, type Analyzer, type AnalyzerInput, type Judgment } from '../judgment.js';
 import {
   QUESTIONS_VERSION,
@@ -49,20 +49,23 @@ export function createJevAnalyzer(options: JevAnalyzerOptions = {}): Analyzer {
   const model = options.model || env('JEV_MODEL') || 'jev-latest';
 
   // 말하는 구간과 듣는 구간은 질문 세트가 따로다. 듣는 구간에서 빠진 선택지는 아래에서 확률 0 으로 채운다.
-  const questionsFor = (role: Role): Record<string, unknown> => {
-    const questions: Record<string, unknown> = { intensity: { type: 'score', ...intensityQuestion(role) } };
-    for (const region of REGION_KEYS) {
-      questions[region] = {
-        type: 'choice',
-        instructions: regionInstructions(region, role),
-        criteria: regionCriteria(region, role),
-      };
-    }
-    return questions;
-  };
-  const questions: Record<Role, Record<string, unknown>> = {
-    speaking: questionsFor('speaking'),
-    listening: questionsFor('listening'),
+  // 팔처럼 그 몸에만 있는 부위는 AI 가 말하는 구간에서, 요청에 parts 로 들어온 것만 묻는다.
+  const question = (region: Region, role: Role) => ({
+    type: 'choice',
+    instructions: regionInstructions(region, role),
+    criteria: regionCriteria(region, role),
+  });
+  const base: Record<Role, Record<string, unknown>> = { speaking: {}, listening: {} };
+  for (const role of ['speaking', 'listening'] as const) {
+    base[role].intensity = { type: 'score', ...intensityQuestion(role) };
+    for (const region of FACE_REGIONS) base[role][region] = question(region, role);
+  }
+  const extras = Object.fromEntries(OPTIONAL_REGIONS.map((r) => [r, question(r, 'speaking')]));
+  const questionsFor = (role: Role, parts: readonly Region[] = []): { questions: Record<string, unknown>; asked: Region[] } => {
+    const asked = role === 'speaking' ? OPTIONAL_REGIONS.filter((r) => parts.includes(r)) : [];
+    const questions = { ...base[role] };
+    for (const r of asked) questions[r] = extras[r];
+    return { questions, asked: [...FACE_REGIONS, ...asked] };
   };
 
   return {
@@ -70,10 +73,11 @@ export function createJevAnalyzer(options: JevAnalyzerOptions = {}): Analyzer {
     version: `${model}:${QUESTIONS_VERSION}`,
     async analyze(input: AnalyzerInput): Promise<Judgment> {
       const state = toFaceState(input);
+      const { questions, asked } = questionsFor(state.role, input.parts);
       const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, state, questions: questions[state.role] }),
+        body: JSON.stringify({ model, state, questions }),
       });
       if (!res.ok) throw new Error(`Jev 요청 실패 ${res.status}: ${await res.text()}`);
       const json = (await res.json()) as JevResponse;
@@ -83,8 +87,9 @@ export function createJevAnalyzer(options: JevAnalyzerOptions = {}): Analyzer {
         throw new Error(`Jev 응답에 intensity 답이 없습니다: ${JSON.stringify(json.answers.intensity)}`);
       }
 
-      const regions = {} as RegionProbs;
-      for (const region of REGION_KEYS) {
+      // 묻지 않은 부위는 기본 선택지로 채운다
+      const regions = restProbs();
+      for (const region of asked) {
         const a = json.answers[region] as ChoiceAnswer | undefined;
         if (!a || a.type !== 'choice' || !a.probabilities) {
           throw new Error(`Jev 응답에 choice 답이 없습니다: ${region} ${JSON.stringify(a)}`);

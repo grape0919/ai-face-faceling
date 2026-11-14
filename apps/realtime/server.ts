@@ -37,6 +37,24 @@ const INSTRUCTIONS =
   '당신은 다정하고 표정이 풍부한 대화 상대입니다. 한국어로 자연스럽게 말하고, 한 번에 두세 문장 정도로 짧게 답하세요. ' +
     '상대의 기분에 맞춰 반응하고, 가끔 가벼운 농담도 하세요.';
 
+/**
+ * 캐릭터(몸)별로 AI 에게 알려 줄 자기 몸. AI 가 "찡긋!", "오른쪽으로 쭉!"처럼 실제로 해 보이는 말을 하면
+ * 표정 판단이 그 말을 보고 얼굴과 팔을 움직인다. 할 수 없는 동작은 할 수 없다고 하게 한다.
+ */
+const CHARACTERS: Record<string, string> = {
+  face:
+    '당신에게는 화면에 보이는 표정 풍부한 얼굴이 있습니다. 사용자가 윙크, 미소, 놀란 표정 같은 것을 부탁하면 ' +
+    '"좋아요, 찡긋!"처럼 지금 그 표정을 해 보이는 말 한마디로 답하세요. 표정을 자세히 설명하지 마세요. 사용자가 화면으로 직접 봅니다. ' +
+    '얼굴이 없다거나 표정을 지을 수 없다고 말하지 마세요. ' +
+    '팔이나 손은 없으니 그런 동작을 부탁받으면 대신 고개를 끄덕이거나 웃어 보이겠다고 하세요.',
+  arm:
+    '당신은 얼굴이 없는 작업대 로봇팔입니다. 받침 위에 어깨, 팔꿈치, 손목, 집게가 있고 손목에 불빛이 있습니다. ' +
+    '팔을 오른쪽, 왼쪽, 위, 아래로 뻗고, 사용자 쪽으로 내밀고, 흔들 수 있으며, 감정도 몸짓으로 드러냅니다. ' +
+    '사용자가 움직여 보라고 하면 "네, 오른쪽으로 쭉!"처럼 지금 그 동작을 하는 말 한마디로 답하세요. ' +
+    '관절이 어떻게 움직였는지 자세히 설명하지 마세요. 사용자가 화면으로 직접 봅니다. 직접 움직일 수 없다고 말하지 마세요. ' +
+    '방향은 사용자가 화면을 보는 쪽 기준입니다. 눈이 없어 윙크는 못 하지만, 부탁받으면 "대신 불빛을 찡긋!"처럼 불빛을 깜빡여 보이세요.',
+};
+
 /** 판단 기록. 어떤 맥락으로 무엇을 물었고 무엇이 나왔는지 한 줄씩 남긴다. */
 const LOG_DIR = path.join(APP_ROOT, 'logs');
 const LOG_FILE = path.join(LOG_DIR, `judge-${new Date().toISOString().slice(0, 10)}.jsonl`);
@@ -54,7 +72,7 @@ async function logJudgment(input: AnalyzerInput, judgment: Judgment, ms: number)
 
 const api = toNodeHandler(
   createFacelingHandler({
-    session: { model: MODEL, voice: VOICE, instructions: INSTRUCTIONS, language: 'ko' },
+    session: { model: MODEL, voice: VOICE, instructions: INSTRUCTIONS, characters: CHARACTERS, language: 'ko' },
     transcription: { model: LIVE_TRANSCRIBE_MODEL, language: 'ko' },
     judge: { onJudgment: logJudgment },
   }),

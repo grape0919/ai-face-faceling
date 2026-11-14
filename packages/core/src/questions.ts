@@ -7,7 +7,7 @@ import type { AnalyzerInput } from './judgment.js';
  * 부위와 선택지는 shared/regions.ts 에 있다. Jev 와 LLM 대조군이 같은 문구를 쓴다.
  * 문구나 선택지를 바꾸면 QUESTIONS_VERSION 을 올린다.
  */
-export const QUESTIONS_VERSION = 'r4';
+export const QUESTIONS_VERSION = 'r5';
 
 export type Role = 'speaking' | 'listening';
 export const ROLES: Role[] = ['speaking', 'listening'];
@@ -45,12 +45,15 @@ export const SCENES: Record<Role, string> = {
     `Most everyday or factual lines call for a calm, attentive face. ${COMMON}`,
 };
 
-export const regionInstructions = (region: Region, role: Role): string =>
-  role === 'speaking'
+export const regionInstructions = (region: Region, role: Role): string => {
+  const prompt = regionSpec(region).prompt;
+  if (prompt) return `${prompt} ${COMMON.replace('Judge the face for', 'Judge the movement for')} Pick the single best option.`;
+  return role === 'speaking'
     ? `${SCENES.speaking} To look natural and emotionally fitting, what should ${regionSpec(region).subject} do while saying \`current\`? ` +
       'Pick the single best option. Pick the neutral option when the line carries no clear feeling.'
     : `${SCENES.listening} What should ${regionSpec(region).subject} do while listening to \`current\`? ` +
       'Pick the single best option. Pick the neutral option unless the line clearly calls for a reaction.';
+};
 
 /** 선택지 이름 → 설명. 듣는 구간에서는 듣는 동안 고를 수 없는 동작이 빠진다. */
 export function regionCriteria(region: Region, role: Role): Record<string, string> {

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
-import { REGION_KEYS, regionSpec, type Region, type RegionProbs } from '../../shared/regions';
+import { FACE_REGIONS, regionSpec, restProbs, type Region } from '../../shared/regions';
 import { clamp, type Analyzer, type AnalyzerInput, type Judgment } from '../../shared/types';
 import { QUESTIONS_VERSION, SCENES, intensityQuestion, regionCriteria, toFaceState, type Role } from './questions';
 
@@ -11,7 +11,7 @@ const probsSchema = (names: string[]) =>
 const schemaFor = (role: Role) =>
   z.object({
     intensity: z.number().describe('0-4 scale position, decimals allowed'),
-    ...Object.fromEntries(REGION_KEYS.map((r) => [r, probsSchema(Object.keys(regionCriteria(r, role)))])),
+    ...Object.fromEntries(FACE_REGIONS.map((r) => [r, probsSchema(Object.keys(regionCriteria(r, role)))])),
   });
 
 const regionBlock = (region: Region, role: Role): string =>
@@ -31,7 +31,7 @@ ${intensity.criteria.map((c, i) => `  ${i} = ${c}`).join('\n')}
 
 For each face part below, give a probability (0-1) for every option. The probabilities of one part sum to 1. Put most of the weight on the neutral option when the line carries no clear feeling.
 
-${REGION_KEYS.map((r) => regionBlock(r, role)).join('\n\n')}`;
+${FACE_REGIONS.map((r) => regionBlock(r, role)).join('\n\n')}`;
 }
 
 /**
@@ -64,9 +64,9 @@ export function createLlmAnalyzer(): Analyzer {
       const out = res.parsed_output as (Record<string, Record<string, number>> & { intensity: number }) | null;
       if (!out) throw new Error(`LLM 응답을 해석하지 못했습니다 (stop_reason=${res.stop_reason})`);
 
-      // 듣는 구간에서 빠진 선택지는 0 으로 채운다
-      const regions = {} as RegionProbs;
-      for (const region of REGION_KEYS) {
+      // 듣는 구간에서 빠진 선택지는 0 으로, 묻지 않은 부위(팔 등)는 기본 선택지로 채운다
+      const regions = restProbs();
+      for (const region of FACE_REGIONS) {
         const raw = out[region] ?? {};
         const names = Object.keys(regionSpec(region).actions);
         const sum = names.reduce((n, name) => n + clamp(raw[name] ?? 0), 0) || 1;

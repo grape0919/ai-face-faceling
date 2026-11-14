@@ -3,6 +3,7 @@ import { BLINK_DURATION, Compositor, bell, type Expression, type MouthFeatures, 
 import { facePose } from './face.js';
 import type { AnalyzerInput, Judgment } from './judgment.js';
 import type { FacePose } from './mapping.js';
+import type { Region } from './regions.js';
 import { actionWeight, amplitude, targetWeights, type Gesture, type Weights } from './weights.js';
 
 /**
@@ -225,6 +226,11 @@ export class LiveDirector {
   /** 사용자 말 판단은 최신 것만 쓴다 */
   private reactSeq = 0;
   private side: 'L' | 'R' = 'L';
+  /**
+   * 얼굴 말고도 지금 캐릭터가 가진 부위(예: ['arm']). AI 가 말하는 구간의 판단에 함께 묻는다.
+   * 캐릭터를 바꾸면 바깥에서 고친다.
+   */
+  parts: Region[] = [];
 
   constructor(
     readonly face: LiveFace,
@@ -264,7 +270,7 @@ export class LiveDirector {
     if (!response.primeAsked && response.clauses.length === 0 && charCount(response.raw) >= PRIME_CHARS) {
       response.primeAsked = true;
       void this.options
-        .judge({ speaker: 'assistant', context: this.contextLines(true).join('\n'), current: response.raw.trim() })
+        .judge({ speaker: 'assistant', context: this.contextLines(true).join('\n'), current: response.raw.trim(), parts: this.parts })
         .then((judgment) => {
           response.prime = judgment;
           this.tryPrime(response);
@@ -464,7 +470,7 @@ export class LiveDirector {
     const asked = this.options.clock();
     const following = this.followingOf(response, pending);
     void this.options
-      .judge({ speaker: 'assistant', context: pending.context, current: pending.clause.text, following })
+      .judge({ speaker: 'assistant', context: pending.context, current: pending.clause.text, following, parts: this.parts })
       .then((judgment) => {
         const now = this.options.clock();
         pending.judgment = judgment;
@@ -540,6 +546,9 @@ export class LiveDirector {
     const shake = actionWeight(judgment.regions.head?.shake ?? 0);
     if (nod > 0.3) this.face.addGesture({ type: 'nod', t, dur: 0.5, amp: 0.09 * nod * amp });
     if (shake > 0.3) this.face.addGesture({ type: 'shake', t, dur: 0.9, amp: 0.1 * shake * amp });
+    // 윙크는 감정의 세기와 상관없이 한 번 또렷하게 한다
+    const wink = actionWeight(judgment.regions.eyes?.wink ?? 0);
+    if (wink > 0.3) this.face.addGesture({ type: 'wink', t: t + 0.1, dur: 0.55, amp: Math.min(1, 0.4 + wink), side: 'L' });
     return nod > 0.3 || shake > 0.3;
   }
 

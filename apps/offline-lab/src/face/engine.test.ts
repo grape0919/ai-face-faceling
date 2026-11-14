@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REGION_KEYS, onlyAction, regionSpec, restProbs, type Region } from '../shared/regions';
+import { FACE_REGIONS, REGION_KEYS, onlyAction, regionSpec, restProbs, type Region } from '../shared/regions';
 import { SESSION_FORMAT, type Judgment, type Session, type Speaker } from '../shared/types';
 import { VARIANTS, actionWeight, buildCues, buildGestures, targetWeights, type Level } from './cues';
 import { FaceEngine } from './engine';
@@ -74,12 +74,15 @@ describe('판단값 → 동작 세기', () => {
 });
 
 describe('동작 → 얼굴', () => {
-  it('기본 선택지와 순간 동작을 뺀 모든 동작에 얼굴 정의가 있다', () => {
-    for (const v of VARIANTS) expect(ACTION_POSES[`${v.region}.${v.action}`], v.key).toBeDefined();
-    for (const region of REGION_KEYS) {
+  it('기본 선택지와 순간 동작을 뺀 모든 얼굴 동작에 얼굴 정의가 있다', () => {
+    // 팔처럼 얼굴이 아닌 부위는 그 몸의 리그가 맡으므로 얼굴 정의가 없다
+    for (const v of VARIANTS.filter((v) => FACE_REGIONS.includes(v.region))) {
+      expect(ACTION_POSES[`${v.region}.${v.action}`], v.key).toBeDefined();
+    }
+    for (const region of FACE_REGIONS) {
       for (const action of Object.keys(regionSpec(region).actions)) {
         const known = VARIANTS.some((v) => v.region === region && v.action === action);
-        const skipped = action === regionSpec(region).rest || ['head.nod', 'head.shake'].includes(`${region}.${action}`);
+        const skipped = action === regionSpec(region).rest || ['head.nod', 'head.shake', 'eyes.wink'].includes(`${region}.${action}`);
         expect(known || skipped, `${region}.${action}`).toBe(true);
       }
     }

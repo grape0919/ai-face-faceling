@@ -1,4 +1,4 @@
-import { restProbs, type RegionProbs } from './regions.js';
+import { restProbs, type Region, type RegionProbs } from './regions.js';
 
 export type Speaker = 'assistant' | 'user';
 
@@ -24,6 +24,11 @@ export interface AnalyzerInput {
    * "정말요?"처럼 뒷말을 들어야 뜻이 정해지는 구간을 판단할 때 쓴다. 없으면 비워 둔다.
    */
   following?: string;
+  /**
+   * 얼굴 말고도 이 캐릭터가 가진 부위(regions.ts 에서 optional 인 것, 예: 'arm').
+   * AI 가 말하는 구간에서만 묻고, 넘기지 않은 부위는 기본 선택지로 채운다.
+   */
+  parts?: Region[];
 }
 
 export interface Analyzer {

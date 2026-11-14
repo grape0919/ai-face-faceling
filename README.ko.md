@@ -159,7 +159,15 @@ renderer.setAnimationLoop(() => {
 });
 ```
 
-내 몸을 움직이려면 `frame.expression` 을 같은 식으로 읽는다. 옮기기 편하도록 `@faceling/rigs` 의 `bodyFeelings(expression)` 가 동작들을 몇 가지 느낌(`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`)으로 묶어 준다. 계수는 초안이다. 판단 질문은 아직 얼굴 말투로 묻는다. 다가가기나 움찔 물러서기처럼 얼굴에는 없는 몸짓이 필요해지면, 질문에 몸짓 부위를 더하는 것이 다음 단계다.
+내 몸을 움직이려면 `frame.expression` 을 같은 식으로 읽는다. 옮기기 편하도록 `@faceling/rigs` 의 `bodyFeelings(expression)` 가 동작들을 몇 가지 느낌(`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`)으로 묶어 준다. 계수는 초안이다.
+
+#### 부탁한 동작 하기
+
+"윙크해 봐", "팔을 오른쪽으로 움직여 봐" 같은 부탁에 도구 호출은 필요 없다. 판단 모델은 원래 말을 보고 부위마다 할 일을 고르므로, 일부러 하는 동작도 선택지 하나일 뿐이다. AI 가 "좋아요, 찡긋!"이나 "네, 오른쪽으로 쭉!"이라고 답하면 같은 구절 판단이 `eyes.wink` 나 `arm.right` 를 고르고, 그 구절이 들리는 순간에 동작이 나온다. "윙크는 못 해요", "오른쪽은 밥 먹는 손 쪽이에요"처럼 동작을 말하기만 하는 문장에는 움직이지 않는다.
+
+- **몸에만 있는 부위.** 얼굴에 없는 부위는 `regions.ts` 에서 `optional` 로 표시한다(로봇팔의 `arm`: `right`, `left`, `up`, `down`, `forward`, `wave`). `director.parts = ['arm']` (`ArmRig.parts`)로 넣으면 AI 가 말하는 구간에서만 함께 묻는다.
+- **감정보다 엄격하게.** 일부러 하는 동작은 확률 50 % 를 넘어야 시작하고 85 % 에서 온전히 하며, 표정 세기와는 상관없다.
+- **AI 가 자기 몸을 알아야 한다.** 모르면 "저는 움직일 수 없어요"라고 답한다. `createSessionHandler({ characters: { arm: '…' } })` 는 브라우저가 보낸 `character` (`connect({ character: 'arm' })`)에 맞는 몸 설명을 지시 뒤에 붙인다. 예제는 로봇팔에게 할 수 있는 동작과 "한마디로 해 보이기"를 알려 주고, 얼굴 캐릭터에게는 팔이 없다고 알려 준다.
 
 ### 다른 음성 대화 서비스
 

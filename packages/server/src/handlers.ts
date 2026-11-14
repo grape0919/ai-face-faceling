@@ -1,5 +1,6 @@
 import { createJevAnalyzer } from '@faceling/core/analyzers/jev';
 import type { Analyzer, AnalyzerInput, Judgment } from '@faceling/core/judgment';
+import { OPTIONAL_REGIONS } from '@faceling/core/regions';
 
 /**
  * 프레임워크에 상관없는 요청 처리기. 표준 Request 를 받아 Response 를 돌려준다.
@@ -89,12 +90,18 @@ export interface SessionHandlerOptions {
   transcribeModel?: string;
   /** 사용자 말의 언어(ISO 639-1, 예: 'ko', 'en'). 비우면 OpenAI 가 알아서 판단한다. */
   language?: string;
+  /**
+   * 몸(캐릭터)별로 instructions 뒤에 덧붙일 지시. 브라우저가 본문의 character 로 고른다(예: { arm: '당신은 로봇팔입니다…' }).
+   * AI 가 자기 몸을 알아야 "오른쪽으로 쭉!"처럼 그 몸으로 하는 말을 하고, 표정 판단이 그 말을 보고 몸을 움직인다.
+   * 브라우저는 이름만 보내므로 지시 내용은 서버가 정한다.
+   */
+  characters?: Record<string, string>;
   /** 세션 설정을 마지막에 고친다. 도구(tools)를 넣는 등 위 옵션으로 안 되는 것에 쓴다. */
   customize?: (session: Record<string, unknown>) => Record<string, unknown>;
 }
 
 /**
- * 브라우저가 OpenAI Realtime 에 직접 붙을 때 쓸 임시 키를 발급한다(POST, 본문 { voice? }).
+ * 브라우저가 OpenAI Realtime 에 직접 붙을 때 쓸 임시 키를 발급한다(POST, 본문 { voice?, character? }).
  * 응답은 { value, expires_at, model, voice }. @faceling/openai-realtime 의 RealtimeConnection 이 이 형식을 읽는다.
  */
 export function createSessionHandler(options: SessionHandlerOptions = {}): FetchHandler {
@@ -104,9 +111,11 @@ export function createSessionHandler(options: SessionHandlerOptions = {}): Fetch
     const model = options.model || env('OPENAI_REALTIME_MODEL') || DEFAULT_REALTIME_MODEL;
     const fallbackVoice = options.voice || env('OPENAI_REALTIME_VOICE') || DEFAULT_VOICE;
     const voices = options.voices ?? DEFAULT_VOICES;
-    const asked = text((await readJson(request)).voice, 40);
+    const body = await readJson(request);
+    const asked = text(body.voice, 40);
     const voice = voices.includes(asked) ? asked : fallbackVoice;
-    const instructions = options.instructions ?? env('OPENAI_REALTIME_INSTRUCTIONS');
+    const character = options.characters?.[text(body.character, 40)];
+    const instructions = [options.instructions ?? env('OPENAI_REALTIME_INSTRUCTIONS'), character].filter(Boolean).join('\n\n');
     const transcribeModel = options.transcribeModel || env('OPENAI_TRANSCRIBE_MODEL') || DEFAULT_TRANSCRIBE_MODEL;
 
     let session: Record<string, unknown> = {
@@ -197,6 +206,7 @@ export function createJudgeHandler(options: JudgeHandlerOptions = {}): FetchHand
       context: text(body.context, 1200),
       current: text(body.current, 400),
       following: text(body.following, 400),
+      parts: Array.isArray(body.parts) ? OPTIONAL_REGIONS.filter((r) => (body.parts as unknown[]).includes(r)) : [],
     };
     if (!input.current.trim()) return json(400, { error: 'current 가 비어 있습니다' });
     const started = performance.now();
