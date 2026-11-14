@@ -310,6 +310,7 @@
           <div id="avatars" role="group" aria-label="얼굴 고르기">
             <button data-avatar="robot">로봇</button>
             <button data-avatar="dog">강아지</button>
+            <button data-avatar="vrm" title="3D 모델(VRM)">3D</button>
           </div>
         </div>
 
@@ -359,6 +360,13 @@
         <div class="card">
           <h2>시점</h2>
           <div id="stats"></div>
+        </div>
+        <div class="card">
+          <h2>3D 얼굴 · VRM</h2>
+          <p id="model-info">"3D"를 고르면 예제 모델을 불러옵니다. 내 VRM 파일을 넣을 수도 있습니다.</p>
+          <div class="row" style="margin-top:10px">
+            <label class="btn">내 VRM 불러오기<input id="vrm-file" type="file" accept=".vrm" hidden /></label>
+          </div>
         </div>
         <div class="card">
           <h2>문장 하나로 시험 · 연결 없이, 소리 없음</h2>

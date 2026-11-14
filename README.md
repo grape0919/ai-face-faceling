@@ -38,6 +38,8 @@ npm run rt:dev
 
 Open http://localhost:5174, press "대화 시작" (Start talking) and allow the microphone. To try it without a microphone or an OpenAI key, press "소리 없이 맛보기" (silent demo). The demo UI is in Korean for now.
 
+Switch faces with the buttons on the top right of the stage: 로봇 (robot), 강아지 (dog) and 3D. The 3D option loads pixiv's sample model [VRM1_Constraint_Twist_Sample](https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models) (© 2022 pixiv Inc., [VRM Public License 1.0](https://vrm.dev/licenses/1.0/)) from the web at runtime; it is not included in this repository. That model only has the standard VRM expressions (happy, sad, surprised and so on), so its face looks simpler than the robot and dog. Load your own VRM with ARKit blendshapes from "안쪽 보기" (inspector) → "내 VRM 불러오기" (load my VRM) to see every expression.
+
 ## Project layout
 
 | Folder | Contents |

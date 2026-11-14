@@ -3,6 +3,9 @@ import { LiveDirector, LiveFace, type DirectorStats, type LiveFrame } from '@fac
 import { REGION_KEYS, regionSpec, topAction, type Region } from '@faceling/core/regions';
 import { DogRig } from '@faceling/core/rigs/dog';
 import { RobotRig } from '@faceling/core/rigs/robot';
+import { VrmRig } from '@faceling/core/rigs/vrm';
+import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VARIANTS } from '@faceling/core/weights';
 import * as THREE from 'three';
 import { RealtimeConnection } from './realtime';
@@ -23,21 +26,85 @@ const key = new THREE.DirectionalLight(0xffffff, 2.2);
 key.position.set(0.6, 1.2, 1.5);
 scene.add(key);
 
-type Avatar = 'robot' | 'dog';
+const AVATARS = ['robot', 'dog', 'vrm'] as const;
+type Avatar = (typeof AVATARS)[number];
 const rigs: { robot?: RobotRig; dog?: DogRig } = {};
-let avatar: Avatar = new URLSearchParams(location.search).get('avatar') === 'dog' ? 'dog' : 'robot';
+let avatar: Avatar = AVATARS.find((a) => a === new URLSearchParams(location.search).get('avatar')) ?? 'robot';
+
+/**
+ * 3D 얼굴(VRM). 직접 고른 파일이 없으면 three-vrm 의 예제 모델을 실행 중에 불러온다.
+ * 이 모델은 저장소에 넣지 않는다.
+ */
+const SAMPLE_VRM = 'https://pixiv.github.io/three-vrm/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm';
+const lookTarget = new THREE.Object3D();
+scene.add(lookTarget);
+let vrm: VRM | null = null;
+let vrmRig: VrmRig | null = null;
+let vrmLoading: Promise<void> | null = null;
+
+async function loadVrm(source: string, label: string): Promise<void> {
+  setStatus(`3D 모델을 불러오는 중입니다 (${label})`);
+  const loader = new GLTFLoader();
+  loader.register((parser) => new VRMLoaderPlugin(parser));
+  const gltf = await loader.loadAsync(source);
+  const next = gltf.userData.vrm as VRM | undefined;
+  if (!next) throw new Error('VRM 모델이 아닙니다');
+  VRMUtils.rotateVRM0(next);
+  if (vrm) {
+    scene.remove(vrm.scene);
+    VRMUtils.deepDispose(vrm.scene);
+  }
+  vrm = next;
+  scene.add(vrm.scene);
+  vrm.scene.updateMatrixWorld(true);
+  const head = new THREE.Vector3();
+  vrm.humanoid.getNormalizedBoneNode('head')?.getWorldPosition(head);
+  vrmRig = new VrmRig(vrm, lookTarget, { x: head.x, y: head.y + 0.04, z: head.z + 1.15 });
+  showModelInfo(label);
+  setStatus(idleStatus);
+}
+
+/** 모델 정보와, 얼굴이 표정을 얼마나 낼 수 있는지 보여 준다 */
+function showModelInfo(label: string): void {
+  if (!vrm || !vrmRig) return;
+  const meta = vrm.meta as { name?: string; title?: string; authors?: string[]; author?: string; licenseUrl?: string };
+  const name = meta.name ?? meta.title ?? label;
+  const author = meta.authors?.join(', ') ?? meta.author ?? '';
+  const ability =
+    vrmRig.mode === 'arkit'
+      ? `ARKit 표정 ${vrmRig.supported.length}개를 가진 모델입니다. 표정이 모두 반영됩니다.`
+      : '표준 표정(기쁨, 슬픔, 놀람 등)만 가진 모델이라 표정이 단순하게 보입니다. ARKit 표정을 가진 VRM 을 넣으면 로봇·강아지처럼 세밀하게 움직입니다.';
+  $('model-info').textContent = `${name}${author ? ` (${author})` : ''}. ${ability}`;
+}
 
 function showAvatar(next: Avatar): void {
   avatar = next;
   if (next === 'robot' && !rigs.robot) scene.add((rigs.robot = new RobotRig()).object);
   if (next === 'dog' && !rigs.dog) scene.add((rigs.dog = new DogRig()).object);
-  const rig = rigs[next];
-  if (!rig) return;
-  const c = rig.headCenter;
-  camera.position.set(c.x, c.y + (next === 'robot' ? 0.02 : 0), c.z + 1.35);
-  camera.lookAt(c.x, c.y - (next === 'robot' ? 0.03 : 0), c.z);
+  if (next === 'vrm' && !vrm && !vrmLoading) {
+    vrmLoading = loadVrm(SAMPLE_VRM, 'three-vrm 예제 모델')
+      .then(() => {
+        if (avatar === 'vrm') showAvatar('vrm');
+      })
+      .catch((err: unknown) => setError(`3D 모델을 불러오지 못했습니다: ${err instanceof Error ? err.message : String(err)}`))
+      .finally(() => (vrmLoading = null));
+  }
+  if (next === 'vrm') {
+    if (vrm) {
+      const head = new THREE.Vector3();
+      vrm.humanoid.getNormalizedBoneNode('head')?.getWorldPosition(head);
+      camera.position.set(head.x, head.y + 0.04, head.z + 1.15);
+      camera.lookAt(head.x, head.y + 0.02, head.z);
+    }
+  } else {
+    const c = (rigs[next] as RobotRig | DogRig).headCenter;
+    camera.position.set(c.x, c.y + (next === 'robot' ? 0.02 : 0), c.z + 1.35);
+    camera.lookAt(c.x, c.y - (next === 'robot' ? 0.03 : 0), c.z);
+  }
   if (rigs.robot) rigs.robot.object.visible = next === 'robot';
   if (rigs.dog) rigs.dog.object.visible = next === 'dog';
+  if (vrm) vrm.scene.visible = next === 'vrm';
+  document.body.dataset.avatar = next;
   for (const button of $('avatars').querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(button.dataset.avatar === next));
   }
@@ -65,6 +132,7 @@ const face = new LiveFace();
 const director = new LiveDirector(face, { judge, clock, onStats: showStats });
 
 const setStatus = (text: string): void => void ($('status').textContent = text);
+let idleStatus = '';
 const setError = (message: string): void => void ($('error').textContent = message);
 
 const captions = { user: '', assistant: '' };
@@ -131,14 +199,21 @@ function showDebug(frame: LiveFrame): void {
 
 // ── 매 프레임 ─────────────────────────────────────────────
 let lastFrame: LiveFrame | null = null;
+const frameClock = new THREE.Clock();
 function tick(): void {
   requestAnimationFrame(tick);
   const mouth = simulation.running ? simulation.mouth() : connection.mouth();
   const frame = face.update(clock(), mouth);
   lastFrame = frame;
-  const rig = rigs[avatar];
-  rig?.apply(frame);
-  if (avatar === 'robot') rigs.robot?.setLamp(frame.shapes.jawOpen ?? 0);
+  const dt = frameClock.getDelta();
+  if (avatar === 'vrm') {
+    vrmRig?.apply(frame);
+    // 머리카락과 옷의 흔들림(스프링 본)도 여기서 움직인다
+    vrm?.update(dt);
+  } else {
+    rigs[avatar]?.apply(frame);
+    if (avatar === 'robot') rigs.robot?.setLamp(frame.shapes.jawOpen ?? 0);
+  }
   renderer.render(scene, camera);
   showDebug(frame);
 }
@@ -184,6 +259,14 @@ async function init(): Promise<void> {
   for (const button of $('avatars').querySelectorAll('button')) {
     button.addEventListener('click', () => showAvatar(button.dataset.avatar as Avatar));
   }
+  $<HTMLInputElement>('vrm-file').addEventListener('change', (event) => {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    setError('');
+    loadVrm(URL.createObjectURL(file), file.name)
+      .then(() => showAvatar('vrm'))
+      .catch((err: unknown) => setError(`3D 모델을 불러오지 못했습니다: ${err instanceof Error ? err.message : String(err)}`));
+  });
 
   const connectButton = $<HTMLButtonElement>('connect');
   connectButton.addEventListener('click', () => {
@@ -256,11 +339,10 @@ async function init(): Promise<void> {
   });
   if (!config.jev) setError('TYPESAFE_API_KEY 가 없습니다. 루트의 .env 에 넣고 서버를 다시 시작하세요.');
   connectButton.disabled = !config.openai;
-  setStatus(
-    config.openai
-      ? '"대화 시작"을 누르고 마이크를 허용하세요.'
-      : 'OPENAI_API_KEY 가 없어 음성 대화는 할 수 없습니다. "소리 없이 맛보기"로 표정을 볼 수 있습니다.',
-  );
+  idleStatus = config.openai
+    ? '"대화 시작"을 누르고 마이크를 허용하세요.'
+    : 'OPENAI_API_KEY 가 없어 음성 대화는 할 수 없습니다. "소리 없이 맛보기"로 표정을 볼 수 있습니다.';
+  if (!vrmLoading) setStatus(idleStatus);
 }
 
 // 브라우저 콘솔과 자동 검증에서 현재 상태를 들여다보기 위한 창구
@@ -277,6 +359,12 @@ Object.assign(window, {
     },
     director,
     connection,
+    get vrmMode() {
+      return vrmRig?.mode ?? null;
+    },
+    get vrmMeta() {
+      return vrm?.meta ?? null;
+    },
     playFakeMic: () => playFakeMic?.(),
   },
 });
