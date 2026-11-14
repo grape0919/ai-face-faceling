@@ -8,11 +8,13 @@
     "packages/*"
   ],
   "scripts": {
-    "lab:session": "npm run session -w @faceling/offline-lab --",
-    "lab:dev": "npm run dev -w @faceling/offline-lab",
+    "build": "npm run build -w @faceling/core && npm run build -w @faceling/rigs -w @faceling/openai-realtime -w @faceling/server",
     "test": "npm test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "rt:dev": "npm run dev -w @faceling/realtime"
+    "rt:dev": "npm run dev -w @faceling/realtime",
+    "lab:dev": "npm run dev -w @faceling/offline-lab",
+    "lab:session": "npm run session -w @faceling/offline-lab --",
+    "pack:check": "npm pack --dry-run -w @faceling/core -w @faceling/rigs -w @faceling/openai-realtime -w @faceling/server"
   },
   "license": "MIT"
 }

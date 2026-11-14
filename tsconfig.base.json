@@ -1,0 +1,17 @@
+{
+  "//": "packages/* 공용 설정. 개발 중에는 faceling-source 조건으로 다른 패키지의 TS 원본을 읽고, 빌드(tsconfig.build.json)에서는 dist 의 .d.ts 를 읽는다.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "customConditions": ["faceling-source"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "noEmit": true
+  }
+}

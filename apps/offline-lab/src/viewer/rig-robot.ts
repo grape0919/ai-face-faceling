@@ -1,1 +1,1 @@
-export * from '@faceling/core/rigs/robot';
+export * from '@faceling/rigs/robot';

@@ -1,4 +1,4 @@
-import { restProbs, type RegionProbs } from './regions';
+import { restProbs, type RegionProbs } from './regions.js';
 
 export type Speaker = 'assistant' | 'user';
 

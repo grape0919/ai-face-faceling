@@ -40,15 +40,122 @@ Open http://localhost:5174. A three-step intro asks you to pick a face and a voi
 
 Pick a face in the intro or later with "캐릭터 변경" (change character): 로봇 (robot), 강아지 (dog) and 3D 모델 (3D model). The 3D option loads pixiv's sample model [VRM1_Constraint_Twist_Sample](https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models) (© 2022 pixiv Inc., [VRM Public License 1.0](https://vrm.dev/licenses/1.0/)) from the web at runtime; it is not included in this repository. That model only has the standard VRM expressions (happy, sad, surprised and so on), so its face looks simpler than the robot and dog. Load your own VRM with ARKit blendshapes from the developer panel → "내 VRM 불러오기" (load my VRM) to see every expression.
 
+## Add it to your app
+
+Faceling is split into four packages. Use only the ones you need.
+
+| Package | Runs in | What it gives you |
+|---|---|---|
+| [`@faceling/core`](packages/core) | anywhere | The engine: `LiveDirector` (takes conversation events, judges clauses, schedules expressions) and `LiveFace` (one frame of ARKit 52 values per call). No dependencies |
+| [`@faceling/server`](packages/server) | Node 20+ | Request handlers that keep your keys on the server: Jev judgment relay and OpenAI Realtime ephemeral keys |
+| [`@faceling/openai-realtime`](packages/openai-realtime) | browser | Adapter that connects to the OpenAI Realtime API over WebRTC and feeds its events to the engine |
+| [`@faceling/rigs`](packages/rigs) | browser | Ready-made three.js faces: robot, dog and a VRM adapter. `three` is a peer dependency |
+
+```bash
+npm install @faceling/core @faceling/server @faceling/openai-realtime @faceling/rigs three
+```
+
+> The packages are not on npm yet. Until they are, build them from this repository with `npm run build`, then `npm pack -w @faceling/core -w @faceling/server -w @faceling/openai-realtime -w @faceling/rigs`, and install the resulting `.tgz` files.
+
+### Server
+
+The keys stay here. Set `OPENAI_API_KEY` and `TYPESAFE_API_KEY` in the environment, or pass them as `apiKey` options.
+
+```ts
+// server.ts (Node 20+)
+import { createServer } from 'node:http';
+import { createFacelingHandler, toNodeHandler } from '@faceling/server';
+
+// Serves POST /api/session, /api/transcription-session and /api/judge
+const api = toNodeHandler(
+  createFacelingHandler({
+    session: {
+      instructions: 'You are a warm, expressive companion. Keep replies to two or three sentences.',
+      language: 'en',
+    },
+    transcription: { language: 'en' },
+  }),
+);
+
+createServer((req, res) => {
+  if (req.url?.startsWith('/api/')) return void api(req, res);
+  res.writeHead(404).end(); // serve your web app here
+}).listen(3000);
+```
+
+The handlers are plain `Request → Response` functions, so they fit other frameworks too: `app.use('/api', toNodeHandler(createFacelingHandler()))` in Express, or `export const POST = createFacelingHandler()` in a Next.js route at `app/api/[route]/route.ts`. Use `createJudgeHandler()`, `createSessionHandler()` and `createTranscriptionSessionHandler()` to mount them one by one. **They have no authentication.** Put your own login and rate limit in front of them before you expose them, or anyone can spend your keys.
+
+### Browser
+
+```ts
+import { LiveDirector, LiveFace, createRemoteJudge } from '@faceling/core';
+import { RealtimeConnection } from '@faceling/openai-realtime';
+import { RobotRig } from '@faceling/rigs';
+import * as THREE from 'three';
+
+// The engine: judges each clause through your server (/api/judge) and times it to the audio
+const clock = () => performance.now() / 1000;
+const face = new LiveFace();
+const director = new LiveDirector(face, { judge: createRemoteJudge(), clock });
+
+// The adapter: OpenAI Realtime over WebRTC, using ephemeral keys from /api/session
+const connection = new RealtimeConnection(director, {
+  onStatus: (text) => console.log(text),
+  onCaption: (who, text, final) => final && console.log(`${who}: ${text}`),
+  onError: (message) => console.error(message),
+});
+document.querySelector('#start')!.addEventListener('click', () => connection.connect({ greet: true }));
+
+// The face: any renderer that takes ARKit 52 values. Here, the built-in robot.
+const renderer = new THREE.WebGLRenderer({ canvas: document.querySelector('canvas')!, antialias: true });
+const scene = new THREE.Scene();
+scene.add(new THREE.AmbientLight(0xffffff, 1.3), new THREE.DirectionalLight(0xffffff, 2.2));
+const camera = new THREE.PerspectiveCamera(24, 1, 0.1, 20);
+camera.position.set(0, 1.47, 1.35);
+camera.lookAt(0, 1.42, 0);
+const robot = new RobotRig();
+scene.add(robot.object);
+
+renderer.setAnimationLoop(() => {
+  robot.apply(face.update(clock(), connection.mouth())); // one frame: ARKit 52 + head + gaze
+  renderer.render(scene, camera);
+});
+```
+
+If your server lives elsewhere, pass the URLs: `createRemoteJudge({ url })` and `new RealtimeConnection(director, callbacks, { sessionUrl, transcriptionSessionUrl, headers })`. The adapter's status messages and default greeting are in Korean for now; pass `greeting` to change what the AI is told to open with.
+
+To drive your own face instead of the robot, read the frame yourself. `face.update(now, mouth)` returns `{ shapes, head, gaze }`: `shapes` maps ARKit 52 blendshape names to 0–1, `head` holds `pitch`, `yaw` and `roll` in radians, and `gaze` holds `x` and `y` from −1 to 1. For a VRM model, load it with `@pixiv/three-vrm` and use `VrmRig` from `@faceling/rigs`.
+
+### Other voice services
+
+`@faceling/openai-realtime` is only an adapter. To use another voice service, write one that calls these `LiveDirector` methods as its events arrive. This is the whole list.
+
+| Method | When to call it |
+|---|---|
+| `assistantStarted()` | The AI starts producing a reply |
+| `assistantText(delta)` | A piece of the reply text arrives |
+| `assistantTextDone()` | The reply text is complete |
+| `assistantAudioStarted()` | The AI's voice actually starts playing |
+| `assistantAudioStopped()` | The AI's voice finishes playing |
+| `assistantInterrupted()` | The user cut in and the voice was stopped |
+| `userSpeechStarted()` / `userSpeechStopped()` | The user starts or stops speaking |
+| `userPartial(text)` | Words heard so far while the user is still speaking (everything from the start of this utterance). Optional |
+| `userTranscript(text)` | The final transcript of what the user said |
+
+Lip sync goes in through the second argument of `face.update()`. `MouthAnalyser` from `@faceling/core/lipsync` reads it from a Web Audio `AnalyserNode`; pass `null` when there is no audio.
+
 ## Project layout
 
 | Folder | Contents |
 |---|---|
-| [`packages/core`](packages/core) | The engine: face parts and actions, questions sent to the judgment model, action → ARKit 52 mapping, layer compositing, real-time scheduling, the robot and dog faces |
-| [`apps/realtime`](apps/realtime) | Real-time demo on the OpenAI Realtime API, with a small server that keeps the keys off the browser |
+| [`packages/core`](packages/core) | The engine: face parts and actions, questions sent to the judgment model, action → ARKit 52 mapping, layer compositing, real-time scheduling |
+| [`packages/rigs`](packages/rigs) | The robot and dog faces and the VRM adapter (three.js) |
+| [`packages/openai-realtime`](packages/openai-realtime) | Browser adapter for the OpenAI Realtime API |
+| [`packages/server`](packages/server) | Node handlers: Jev relay and ephemeral keys |
+| [`apps/realtime`](apps/realtime) | Real-time demo built on the packages above |
 | [`apps/offline-lab`](apps/offline-lab) | Offline lab that pre-computes expressions for a recorded conversation, for tuning the mappings |
 
-The READMEs inside each folder, the code comments and the demo UI are currently in Korean.
+The package READMEs are in English. The READMEs of the two apps, the code comments and the demo UI are currently in Korean.
 
 ## How it works
 
@@ -76,7 +183,7 @@ The reply text arrives one to two seconds ahead of the audio, so most clauses ar
 
 Face parts move at different speeds: brows and eyes react quickly, while mouth corners and cheeks build up slowly and linger. Audio is used only for lip sync; emotion is read from the text alone.
 
-To connect another voice service, write an adapter that passes its events to the engine. The events the engine accepts are listed in the [real-time demo docs](apps/realtime/README.md#구조) (Korean).
+To connect another voice service, write an adapter that passes its events to the engine. See [Other voice services](#other-voice-services) for the events it accepts.
 
 The diagrams are generated by `docs/diagrams/build.mjs`. After editing it, run `node docs/diagrams/build.mjs` to rebuild both the English and Korean versions.
 
@@ -91,6 +198,6 @@ The diagrams are generated by `docs/diagrams/build.mjs`. After editing it, run `
 ## License
 
 - Code: [MIT](LICENSE)
-- Designs of the two built-in faces (robot and dog): [CC BY-NC 4.0](packages/core/src/rigs/LICENSE.md). Free for non-commercial use; using them as the face of a commercial product requires permission. Faces you design yourself are not affected.
+- Designs of the two built-in faces (robot and dog): [CC BY-NC 4.0](packages/rigs/LICENSE.md). Free for non-commercial use; using them as the face of a commercial product requires permission. Faces you design yourself are not affected.
 
 © 2026 RED BRIDGE DEV

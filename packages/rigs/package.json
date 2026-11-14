@@ -1,0 +1,73 @@
+{
+  "name": "@faceling/rigs",
+  "version": "0.1.0",
+  "description": "Ready-made three.js faces for Faceling: a robot, a dog (CC BY-NC 4.0 designs) and a VRM adapter",
+  "keywords": [
+    "faceling",
+    "three",
+    "vrm",
+    "avatar",
+    "arkit"
+  ],
+  "license": "MIT AND CC-BY-NC-4.0",
+  "author": "RED BRIDGE DEV",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "faceling-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./robot": {
+      "faceling-source": "./src/robot.ts",
+      "types": "./dist/robot.d.ts",
+      "default": "./dist/robot.js"
+    },
+    "./dog": {
+      "faceling-source": "./src/dog.ts",
+      "types": "./dist/dog.d.ts",
+      "default": "./dist/dog.js"
+    },
+    "./vrm": {
+      "faceling-source": "./src/vrm.ts",
+      "types": "./dist/vrm.d.ts",
+      "default": "./dist/vrm.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "LICENSE.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@faceling/core": "^0.1.0"
+  },
+  "peerDependencies": {
+    "three": ">=0.187.0",
+    "@pixiv/three-vrm": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@pixiv/three-vrm": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@pixiv/three-vrm": "^3.5.5",
+    "@types/three": "^0.187.0",
+    "three": "^0.187.0",
+    "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

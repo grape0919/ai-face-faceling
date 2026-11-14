@@ -1,1 +1,1 @@
-export * from '@faceling/core/rigs/vrm';
+export * from '@faceling/rigs/vrm';

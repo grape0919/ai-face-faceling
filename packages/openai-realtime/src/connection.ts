@@ -1,14 +1,15 @@
 import type { MouthFeatures } from '@faceling/core/compositor';
 import { MouthAnalyser } from '@faceling/core/lipsync';
 import type { LiveDirector } from '@faceling/core/live';
-import { LiveTranscriber } from './transcriber';
+import { LiveTranscriber } from './transcriber.js';
 
 /**
  * OpenAI Realtime API 에 WebRTC 로 붙고, 오는 사건을 LiveDirector 에 넘긴다.
  * 이 파일이 "어댑터"다. 다른 음성 대화 서비스에 붙일 때는 이 파일에 해당하는 것만 새로 쓰면 된다.
+ * 실제 키는 서버에만 둔다. 이 클래스는 서버(@faceling/server 의 createSessionHandler)에서 몇 분짜리 임시 키를 받아 쓴다.
  *
  * 연결 방식은 OpenAI 문서(voice-webrtc)를 따랐다:
- *  1. 우리 서버에서 임시 키를 받는다.
+ *  1. 내 서버(sessionUrl)에서 임시 키를 받는다.
  *  2. 마이크를 넣고 "oai-events" 데이터 채널을 연 뒤 SDP 를 /v1/realtime/calls 에 보낸다.
  *  3. AI 음성은 오디오 트랙으로, 텍스트와 상태는 데이터 채널로 온다.
  */
@@ -33,6 +34,19 @@ export interface ConnectOptions {
   /** 연결되자마자 AI 가 먼저 인사하게 한다. */
   greet?: boolean;
 }
+
+export interface RealtimeConnectionOptions {
+  /** 대화용 임시 키를 발급하는 내 서버 주소. 기본값 '/api/session'. 본문으로 { voice } 를 보낸다. */
+  sessionUrl?: string;
+  /** 말하는 도중의 전사에 쓸 임시 키를 발급하는 주소. 기본값 '/api/transcription-session'. */
+  transcriptionSessionUrl?: string;
+  /** 임시 키 요청에 붙일 헤더. 내 서버의 인증에 쓴다. */
+  headers?: Record<string, string>;
+  /** speakFirst() 가 AI 에게 넣는 지시. 기본값은 한국어 인사 요청이다. */
+  greeting?: string;
+}
+
+const DEFAULT_GREETING = '(대화를 시작합니다. 먼저 반갑게 인사하고 오늘 하루가 어땠는지 물어봐 주세요.)';
 
 interface ServerEvent {
   type: string;
@@ -64,15 +78,16 @@ export class RealtimeConnection {
   constructor(
     private readonly director: LiveDirector,
     private readonly callbacks: RealtimeCallbacks,
+    private readonly options: RealtimeConnectionOptions = {},
   ) {
     this.audio.autoplay = true;
   }
 
   async connect(options: ConnectOptions = {}): Promise<void> {
     this.callbacks.onStatus('임시 키를 받는 중');
-    const tokenRes = await fetch('/api/session', {
+    const tokenRes = await fetch(this.options.sessionUrl ?? '/api/session', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.options.headers },
       body: JSON.stringify({ voice: options.voice }),
     });
     const token = (await tokenRes.json()) as { value?: string; model?: string; error?: string };
@@ -151,6 +166,7 @@ export class RealtimeConnection {
       const transcriber = new LiveTranscriber(
         (text) => this.onPartial(text),
         (message) => this.callbacks.onError(message),
+        { sessionUrl: this.options.transcriptionSessionUrl, headers: this.options.headers },
       );
       try {
         await transcriber.connect(this.mic);
@@ -209,7 +225,7 @@ export class RealtimeConnection {
   /** AI 가 먼저 말을 꺼내게 한다. */
   speakFirst(): void {
     // 응답에 지시를 따로 주면 세션의 지시(한국어로 말하기 등)가 덮인다. 그래서 대화 항목으로 넣는다.
-    this.say('(대화를 시작합니다. 먼저 반갑게 인사하고 오늘 하루가 어땠는지 물어봐 주세요.)');
+    this.say(this.options.greeting ?? DEFAULT_GREETING);
   }
 
   /** 마이크 대신 글로 말을 건다. 듣는 반응도 같이 건다. */

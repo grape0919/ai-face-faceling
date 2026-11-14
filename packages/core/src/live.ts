@@ -1,8 +1,8 @@
-import { charCount, ClauseSplitter, type Clause } from './clauses';
-import { BLINK_DURATION, Compositor, bell, type MouthFeatures, type TurnState } from './compositor';
-import type { AnalyzerInput, Judgment } from './judgment';
-import type { FacePose } from './mapping';
-import { actionWeight, amplitude, targetWeights, type Gesture, type Weights } from './weights';
+import { charCount, ClauseSplitter, type Clause } from './clauses.js';
+import { BLINK_DURATION, Compositor, bell, type MouthFeatures, type TurnState } from './compositor.js';
+import type { AnalyzerInput, Judgment } from './judgment.js';
+import type { FacePose } from './mapping.js';
+import { actionWeight, amplitude, targetWeights, type Gesture, type Weights } from './weights.js';
 
 /**
  * 실시간 대화용 표정 엔진.

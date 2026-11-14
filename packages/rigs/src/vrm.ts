@@ -1,6 +1,6 @@
 import type { VRM } from '@pixiv/three-vrm';
 import type { Object3D } from 'three';
-import { ARKIT_52, type FacePose } from '../mapping';
+import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
 
 const avg = (shapes: Record<string, number>, base: string): number =>
   ((shapes[`${base}Left`] ?? 0) + (shapes[`${base}Right`] ?? 0)) / 2;
