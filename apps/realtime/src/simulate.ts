@@ -48,11 +48,16 @@ export class Simulation {
         if (this.stopped) break;
         if (line.speaker === 'user') await this.user(line.text);
         else await this.assistant(line.text);
-        await sleep(400);
+        await this.pause(400);
       }
     } finally {
       this.running = false;
       this.speakingUntil = 0;
+      // 도중에 멈췄으면 얼굴을 쉬는 상태로 돌려놓는다
+      if (this.stopped) {
+        this.director.assistantInterrupted();
+        this.director.face.turn = 'idle';
+      }
     }
   }
 
@@ -65,16 +70,24 @@ export class Simulation {
     return { jaw, funnel: jaw * Math.max(0, Math.sin(t * 3.1)) * 0.6, stretch: jaw * Math.max(0, Math.sin(t * 2.3 + 1)) * 0.5 };
   }
 
+  /** 멈추라고 하면 바로 깨어나는 쉼 */
+  private async pause(ms: number): Promise<boolean> {
+    const until = performance.now() + ms;
+    while (!this.stopped && performance.now() < until) await sleep(Math.min(50, until - performance.now()));
+    return !this.stopped;
+  }
+
   private async user(text: string): Promise<void> {
     this.director.userSpeechStarted();
     this.onCaption('user', text, false);
-    await sleep(spokenSeconds(text) * 1000);
+    const finished = await this.pause(spokenSeconds(text) * 1000);
     this.director.userSpeechStopped();
+    if (!finished) return;
     // 전사는 말이 끝난 뒤에 도착한다
-    await sleep(300);
+    if (!(await this.pause(300))) return;
     this.onCaption('user', text, true);
     this.director.userTranscript(text);
-    await sleep(500);
+    await this.pause(500);
   }
 
   private async assistant(text: string): Promise<void> {

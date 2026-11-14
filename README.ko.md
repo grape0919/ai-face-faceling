@@ -36,9 +36,9 @@ npm install
 npm run rt:dev
 ```
 
-http://localhost:5174 를 열고 "대화 시작"을 누른 뒤 마이크를 허용한다. 자세한 내용은 [실시간 예제](apps/realtime/README.md)에 있다.
+http://localhost:5174 를 열면 얼굴과 목소리를 고르는 안내가 나오고, 마지막에 "마이크 허용하고 대화 시작"을 누른다. 자세한 내용은 [실시간 예제](apps/realtime/README.md)에 있다.
 
-얼굴은 무대 오른쪽 위의 버튼으로 바꾼다. 로봇, 강아지, 3D 가 있다. 3D 는 pixiv 의 예제 모델 [VRM1_Constraint_Twist_Sample](https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models)(© 2022 pixiv Inc., [VRM Public License 1.0](https://vrm.dev/licenses/1.0/))을 실행 중에 인터넷에서 불러오며, 이 저장소에는 들어 있지 않다. 이 모델은 VRM 표준 표정(기쁨, 슬픔, 놀람 등)만 가지고 있어 로봇·강아지보다 표정이 단순하게 보인다. ARKit 표정을 가진 VRM 을 "안쪽 보기" → "내 VRM 불러오기"로 넣으면 모든 표정이 반영된다.
+얼굴은 안내 화면이나 대화 화면의 "캐릭터 변경"에서 고른다. 로봇, 강아지, 3D 모델이 있다. 3D 는 pixiv 의 예제 모델 [VRM1_Constraint_Twist_Sample](https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models)(© 2022 pixiv Inc., [VRM Public License 1.0](https://vrm.dev/licenses/1.0/))을 실행 중에 인터넷에서 불러오며, 이 저장소에는 들어 있지 않다. 이 모델은 VRM 표준 표정(기쁨, 슬픔, 놀람 등)만 가지고 있어 로봇·강아지보다 표정이 단순하게 보인다. ARKit 표정을 가진 VRM 을 개발자 패널(`` ` `` 키) → "내 VRM 불러오기"로 넣으면 모든 표정이 반영된다.
 
 ## 구성
 
