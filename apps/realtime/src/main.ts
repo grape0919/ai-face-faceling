@@ -2,7 +2,7 @@ import type { AnalyzerInput, Judgment } from '@faceling/core/judgment';
 import type { TurnState } from '@faceling/core/compositor';
 import { LiveDirector, LiveFace, type DirectorStats, type LiveFrame } from '@faceling/core/live';
 import { REGION_KEYS, regionSpec, topAction, type Region } from '@faceling/core/regions';
-import { DogRig, FacelingRig, RobotRig, VrmRig } from '@faceling/rigs';
+import { ArmRig, DogRig, FacelingRig, RobotRig, VrmRig } from '@faceling/rigs';
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VARIANTS } from '@faceling/core/weights';
@@ -32,12 +32,13 @@ const store = {
 };
 
 // ── 얼굴 종류 ─────────────────────────────────────────────
-const AVATARS = ['faceling', 'robot', 'dog', 'vrm'] as const;
+const AVATARS = ['faceling', 'robot', 'dog', 'arm', 'vrm'] as const;
 type Avatar = (typeof AVATARS)[number];
 const AVATAR_INFO: Record<Avatar, { name: string; desc: string }> = {
   faceling: { name: '페이스링', desc: '로고와 같은 얼굴. 눈과 입만으로 표정을 지어요' },
   robot: { name: '로봇', desc: '화면에 눈과 입이 그려지는 작은 로봇' },
   dog: { name: '강아지', desc: '동그란 눈과 큰 귀를 가진 강아지' },
+  arm: { name: '로봇팔', desc: '얼굴 없는 작업대 로봇팔. 몸짓으로 감정을 보여 줘요' },
   vrm: { name: '3D 모델', desc: 'VRM 3D 모델. 처음 고르면 예제 모델을 내려받아요' },
 };
 const isAvatar = (value: string | null): value is Avatar => AVATARS.includes(value as Avatar);
@@ -94,8 +95,8 @@ scene.add(key);
 
 /** 코드로 그린 얼굴들. 처음 고를 때 만든다. */
 type DrawnAvatar = Exclude<Avatar, 'vrm'>;
-const DRAWN: DrawnAvatar[] = ['faceling', 'robot', 'dog'];
-const rigs: { faceling?: FacelingRig; robot?: RobotRig; dog?: DogRig } = {};
+const DRAWN: DrawnAvatar[] = ['faceling', 'robot', 'dog', 'arm'];
+const rigs: { faceling?: FacelingRig; robot?: RobotRig; dog?: DogRig; arm?: ArmRig } = {};
 
 /**
  * 3D 얼굴(VRM). 직접 고른 파일이 없으면 three-vrm 의 예제 모델을 실행 중에 불러온다.
@@ -150,7 +151,8 @@ function showModelInfo(label: string): void {
   $('model-info').textContent = `${name}${author ? ` (${author})` : ''}. ${ability}`;
 }
 
-function ensureRig(which: DrawnAvatar): FacelingRig | RobotRig | DogRig {
+function ensureRig(which: DrawnAvatar): FacelingRig | RobotRig | DogRig | ArmRig {
+  if (which === 'arm') return rigs.arm ?? (scene.add((rigs.arm = new ArmRig()).object), rigs.arm);
   if (which === 'faceling') return rigs.faceling ?? (scene.add((rigs.faceling = new FacelingRig()).object), rigs.faceling);
   if (which === 'robot') return rigs.robot ?? (scene.add((rigs.robot = new RobotRig()).object), rigs.robot);
   return rigs.dog ?? (scene.add((rigs.dog = new DogRig()).object), rigs.dog);
@@ -166,8 +168,10 @@ function frameAvatar(which: Avatar): void {
       camera.lookAt(head.x, head.y + 0.02, head.z);
     }
   } else {
-    const c = ensureRig(which).headCenter;
-    camera.position.set(c.x, c.y + (which === 'robot' ? 0.02 : 0), c.z + 1.35);
+    const rig = ensureRig(which);
+    const c = rig.headCenter;
+    const distance = rig instanceof ArmRig ? rig.viewDistance : 1.35;
+    camera.position.set(c.x, c.y + (which === 'robot' ? 0.02 : 0), c.z + distance);
     camera.lookAt(c.x, c.y - (which === 'robot' ? 0.03 : 0), c.z);
   }
   for (const drawn of DRAWN) if (rigs[drawn]) rigs[drawn].object.visible = which === drawn;
@@ -902,6 +906,8 @@ Object.assign(window, {
     get stats() {
       return director.stats;
     },
+    /** 표정을 직접 예약해 볼 때 쓴다 */
+    face,
     get simulating() {
       return simulation.running;
     },

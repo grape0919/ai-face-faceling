@@ -15,6 +15,7 @@ Faceling is an expression engine for voice AI. It reads the **text** of the conv
 - **Context aware.** The same "I see." becomes a smile after good news and a concerned look after sad news. A short "Really?" takes its feeling from what comes right after it.
 - **Per-part judgment.** For six parts of the face — brows, eyes, gaze, cheeks and nose, mouth, head — the judgment model picks an action directly. Plain, factual lines leave the face at rest.
 - **Any face.** The output is ARKit 52 values, so it fits any renderer. Three code-drawn faces are included (the Faceling face from the logo, a robot and a dog), and VRM models work too.
+- **Not only faces.** Under the ARKit values sits a body-independent expression frame. A faceless workbench robot arm is included: from the very same judgment it slumps when it is sorry, perks up when it is glad, flinches when surprised and tilts its wrist when puzzled.
 - **Lightweight.** No server-side video. Each clause costs one API call of about 0.2–0.3 s.
 
 ## Try it
@@ -38,7 +39,7 @@ npm run rt:dev
 
 Open http://localhost:5174. A three-step intro asks you to pick a face and a voice, then press "마이크 허용하고 대화 시작" (allow microphone and start) or "텍스트로만 대화할게요" (text only). Without an OpenAI key you get "예시 대화 보기" (watch a sample conversation) instead, which drives the face without sound. Press `` ` `` or add `?dev` to the URL to open the developer panel. The demo UI is in Korean for now.
 
-Pick a face in the intro or later with "캐릭터 변경" (change character): 페이스링 (the Faceling face, the default), 로봇 (robot), 강아지 (dog) and 3D 모델 (3D model). The 3D option loads pixiv's sample model [VRM1_Constraint_Twist_Sample](https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models) (© 2022 pixiv Inc., [VRM Public License 1.0](https://vrm.dev/licenses/1.0/)) from the web at runtime; it is not included in this repository. That model only has the standard VRM expressions (happy, sad, surprised and so on), so its face looks simpler than the robot and dog. Load your own VRM with ARKit blendshapes from the developer panel → "내 VRM 불러오기" (load my VRM) to see every expression.
+Pick a face in the intro or later with "캐릭터 변경" (change character): 페이스링 (the Faceling face, the default), 로봇 (robot), 강아지 (dog), 로봇팔 (robot arm, no face) and 3D 모델 (3D model). The 3D option loads pixiv's sample model [VRM1_Constraint_Twist_Sample](https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models) (© 2022 pixiv Inc., [VRM Public License 1.0](https://vrm.dev/licenses/1.0/)) from the web at runtime; it is not included in this repository. That model only has the standard VRM expressions (happy, sad, surprised and so on), so its face looks simpler than the robot and dog. Load your own VRM with ARKit blendshapes from the developer panel → "내 VRM 불러오기" (load my VRM) to see every expression.
 
 ## Add it to your app
 
@@ -49,7 +50,7 @@ Faceling is split into four packages. Use only the ones you need.
 | [`@faceling/core`](packages/core) | anywhere | The engine: `LiveDirector` (takes conversation events, judges clauses, schedules expressions) and `LiveFace` (one frame of ARKit 52 values per call). No dependencies |
 | [`@faceling/server`](packages/server) | Node 20+ | Request handlers that keep your keys on the server: Jev judgment relay and OpenAI Realtime ephemeral keys |
 | [`@faceling/openai-realtime`](packages/openai-realtime) | browser | Adapter that connects to the OpenAI Realtime API over WebRTC and feeds its events to the engine |
-| [`@faceling/rigs`](packages/rigs) | browser | Ready-made three.js faces: the Faceling face, robot, dog and a VRM adapter. `three` is a peer dependency |
+| [`@faceling/rigs`](packages/rigs) | browser | Ready-made three.js characters: the Faceling face, robot, dog, a faceless robot arm and a VRM adapter. `three` is a peer dependency |
 
 ```bash
 npm install @faceling/core @faceling/server @faceling/openai-realtime @faceling/rigs three
@@ -126,6 +127,40 @@ If your server lives elsewhere, pass the URLs: `createRemoteJudge({ url })` and 
 
 To drive your own face instead of the built-in one, read the frame yourself. `face.update(now, mouth)` returns `{ shapes, head, gaze }`: `shapes` maps ARKit 52 blendshape names to 0–1, `head` holds `pitch`, `yaw` and `roll` in radians, and `gaze` holds `x` and `y` from −1 to 1. For a VRM model, load it with `@pixiv/three-vrm` and use `VrmRig` from `@faceling/rigs`.
 
+### Beyond faces
+
+The input and the judgment do not care what body shows them; only the last step does. Each frame carries two outputs:
+
+```
+text → clauses and timing → judgment (Jev) → expression ──┬─ face adapter: ARKit 52 → Faceling, robot, dog, VRM
+                                                           └─ your adapter: joint angles → robot arm, lamp, anything
+```
+
+`face.update()` returns the ARKit values **and** `expression`, the body-independent frame they were made from:
+
+| Field | Meaning |
+|---|---|
+| `weights` | Current strength 0–1 of each judged action, keyed `"part.action"` (`"@L"`/`"@R"` for one-sided ones). The names are face parts, but read them as feelings: `brows.inner_up` is sympathy or sorrow, `head.tilt` is puzzlement, `mouth.grin` is delight |
+| `turn` | How much the AI is `idle`, `listening`, `thinking` or `speaking`, blended smoothly |
+| `gesture` | Momentary moves right now: `nod` and `shake` (radians) and `flash` (a quick brow raise) |
+| `mouth` | Lip-sync energy while speaking (`jaw`, `funnel`, `stretch`), 0 otherwise |
+| `blink`, `energy`, `t` | Blink amount, the strongest action right now, and the time |
+
+The built-in `ArmRig` is an example. It never looks at ARKit values; it turns `expression` into shoulder, elbow, wrist and claw angles:
+
+```ts
+import { ArmRig } from '@faceling/rigs';
+
+const arm = new ArmRig();
+scene.add(arm.object);
+renderer.setAnimationLoop(() => {
+  arm.apply(face.update(clock(), connection.mouth())); // reads frame.expression
+  renderer.render(scene, camera);
+});
+```
+
+To drive your own body, read `frame.expression` the same way. `bodyFeelings(expression)` from `@faceling/rigs` condenses the actions into a few feelings (`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`) if that is easier to map. Its coefficients are a first draft. The judgment itself is still asked in face terms; if a body needs moves no face has (leaning in, flinching back), adding a body part to the questions is the next step.
+
 ### Other voice services
 
 `@faceling/openai-realtime` is only an adapter. To use another voice service, write one that calls these `LiveDirector` methods as its events arrive. This is the whole list.
@@ -149,7 +184,7 @@ Lip sync goes in through the second argument of `face.update()`. `MouthAnalyser`
 | Folder | Contents |
 |---|---|
 | [`packages/core`](packages/core) | The engine: face parts and actions, questions sent to the judgment model, action → ARKit 52 mapping, layer compositing, real-time scheduling |
-| [`packages/rigs`](packages/rigs) | The Faceling, robot and dog faces and the VRM adapter (three.js) |
+| [`packages/rigs`](packages/rigs) | The Faceling, robot and dog faces, the faceless robot arm and the VRM adapter (three.js) |
 | [`packages/openai-realtime`](packages/openai-realtime) | Browser adapter for the OpenAI Realtime API |
 | [`packages/server`](packages/server) | Node handlers: Jev relay and ephemeral keys |
 | [`apps/realtime`](apps/realtime) | Real-time demo built on the packages above |
@@ -198,6 +233,6 @@ The diagrams are generated by `docs/diagrams/build.mjs`. After editing it, run `
 ## License
 
 - Code: [MIT](LICENSE)
-- Designs of the three built-in faces (Faceling, robot and dog): [CC BY-NC 4.0](packages/rigs/LICENSE.md). Free for non-commercial use; using them as the face of a commercial product requires permission. Faces you design yourself are not affected.
+- Designs of the four built-in characters (Faceling, robot, dog and robot arm): [CC BY-NC 4.0](packages/rigs/LICENSE.md). Free for non-commercial use; using them in a commercial product requires permission. Characters you design yourself are not affected.
 
 © 2026 RED BRIDGE DEV

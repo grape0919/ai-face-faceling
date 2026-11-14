@@ -45,6 +45,11 @@
       "types": "./dist/dog.d.ts",
       "default": "./dist/dog.js"
     },
+    "./arm": {
+      "faceling-source": "./src/arm.ts",
+      "types": "./dist/arm.d.ts",
+      "default": "./dist/arm.js"
+    },
     "./vrm": {
       "faceling-source": "./src/vrm.ts",
       "types": "./dist/vrm.d.ts",
