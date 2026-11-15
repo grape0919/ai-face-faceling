@@ -33,10 +33,12 @@ export interface ConnectOptions {
   withoutMic?: boolean;
   /** 연결되자마자 AI 가 먼저 인사하게 한다. */
   greet?: boolean;
+  /** 캐릭터(몸) 이름. 서버가 이 이름으로 AI 에게 자기 몸을 알려 준다(@faceling/server 의 characters 옵션). */
+  character?: string;
 }
 
 export interface RealtimeConnectionOptions {
-  /** 대화용 임시 키를 발급하는 내 서버 주소. 기본값 '/api/session'. 본문으로 { voice } 를 보낸다. */
+  /** 대화용 임시 키를 발급하는 내 서버 주소. 기본값 '/api/session'. 본문으로 { voice, character } 를 보낸다. */
   sessionUrl?: string;
   /** 말하는 도중의 전사에 쓸 임시 키를 발급하는 주소. 기본값 '/api/transcription-session'. */
   transcriptionSessionUrl?: string;
@@ -67,6 +69,10 @@ export class RealtimeConnection {
   /** 말하는 도중의 전사를 받는 두 번째 연결. 켜지 않았거나 실패하면 null. */
   transcriber: LiveTranscriber | null = null;
   private userSpeaking = false;
+  /** AI 가 응답을 만드는 중인지(response.created ~ response.done) */
+  private responding = false;
+  /** AI 음성이 재생되는 중인지 */
+  private speaking = false;
   connected = false;
   /** 마이크를 쓰지 못해(또는 쓰지 않기로 해서) 듣기만 하는 연결인지 */
   listenOnly = false;
@@ -88,7 +94,7 @@ export class RealtimeConnection {
     const tokenRes = await fetch(this.options.sessionUrl ?? '/api/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.options.headers },
-      body: JSON.stringify({ voice: options.voice }),
+      body: JSON.stringify({ voice: options.voice, character: options.character }),
     });
     const token = (await tokenRes.json()) as { value?: string; model?: string; error?: string };
     if (!tokenRes.ok || !token.value) throw new Error(token.error ?? '임시 키를 받지 못했습니다');
@@ -197,6 +203,8 @@ export class RealtimeConnection {
     this.transcriber?.disconnect();
     this.transcriber = null;
     this.userSpeaking = false;
+    this.responding = false;
+    this.speaking = false;
     for (const track of this.mic?.getTracks() ?? []) track.stop();
     this.mic = null;
     void this.ctx?.close();
@@ -240,11 +248,17 @@ export class RealtimeConnection {
 
   /** AI 가 말하는 중이면 끊는다. 사용자가 끼어든 것과 같은 효과다. */
   interrupt(): void {
-    if (this.channel?.readyState === 'open') this.channel.send(JSON.stringify({ type: 'output_audio_buffer.clear' }));
+    if (this.channel?.readyState !== 'open') return;
+    // 아직 만들고 있는 응답이 있으면 그것부터 멈춘다. 재생 버퍼만 비우면 남은 소리가 이어서 들어온다.
+    if (this.responding) this.channel.send(JSON.stringify({ type: 'response.cancel' }));
+    this.channel.send(JSON.stringify({ type: 'output_audio_buffer.clear' }));
   }
 
   private say(text: string): void {
     if (this.channel?.readyState !== 'open') return;
+    // AI 가 말하는 도중에 글을 보내면 끼어든 것으로 본다. 끊지 않으면 새 응답의 소리가 앞 소리 뒤에 이어 붙어
+    // "소리 시작" 신호가 오지 않고, 그 응답에는 표정과 몸짓이 하나도 걸리지 않는다.
+    if (this.responding || this.speaking) this.interrupt();
     this.channel.send(
       JSON.stringify({
         type: 'conversation.item.create',
@@ -265,8 +279,12 @@ export class RealtimeConnection {
     switch (event.type) {
       // ── AI 발화 ──
       case 'response.created':
+        this.responding = true;
         this.assistantLine = '';
         d.assistantStarted();
+        break;
+      case 'response.done':
+        this.responding = false;
         break;
       case 'response.output_audio_transcript.delta':
       case 'response.audio_transcript.delta':
@@ -284,12 +302,15 @@ export class RealtimeConnection {
       // 아래 셋은 WebRTC 에서만 온다. 서버가 실제 재생 위치를 알고 알려 준다.
       case 'output_audio_buffer.started':
         if (!this.userSpeaking) this.transcriber?.discard();
+        this.speaking = true;
         d.assistantAudioStarted();
         break;
       case 'output_audio_buffer.stopped':
+        this.speaking = false;
         d.assistantAudioStopped();
         break;
       case 'output_audio_buffer.cleared':
+        this.speaking = false;
         d.assistantInterrupted();
         break;
 

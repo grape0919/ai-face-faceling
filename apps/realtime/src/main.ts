@@ -2,7 +2,8 @@ import type { AnalyzerInput, Judgment } from '@faceling/core/judgment';
 import type { TurnState } from '@faceling/core/compositor';
 import { LiveDirector, LiveFace, type DirectorStats, type LiveFrame } from '@faceling/core/live';
 import { REGION_KEYS, regionSpec, topAction, type Region } from '@faceling/core/regions';
-import { DogRig, FacelingRig, RobotRig, VrmRig } from '@faceling/rigs';
+import type { BodySpec } from '@faceling/core/body';
+import { ArmRig, DogRig, FACE_BODY, FacelingRig, RobotRig, VrmRig, type Rig } from '@faceling/rigs';
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VARIANTS } from '@faceling/core/weights';
@@ -32,15 +33,18 @@ const store = {
 };
 
 // ── 얼굴 종류 ─────────────────────────────────────────────
-const AVATARS = ['faceling', 'robot', 'dog', 'vrm'] as const;
+const AVATARS = ['faceling', 'robot', 'dog', 'arm', 'vrm'] as const;
 type Avatar = (typeof AVATARS)[number];
 const AVATAR_INFO: Record<Avatar, { name: string; desc: string }> = {
   faceling: { name: '페이스링', desc: '로고와 같은 얼굴. 눈과 입만으로 표정을 지어요' },
   robot: { name: '로봇', desc: '화면에 눈과 입이 그려지는 작은 로봇' },
   dog: { name: '강아지', desc: '동그란 눈과 큰 귀를 가진 강아지' },
+  arm: { name: '로봇팔', desc: '얼굴 없는 작업대 로봇팔. 몸짓으로 감정을 보여 줘요' },
   vrm: { name: '3D 모델', desc: 'VRM 3D 모델. 처음 고르면 예제 모델을 내려받아요' },
 };
 const isAvatar = (value: string | null): value is Avatar => AVATARS.includes(value as Avatar);
+/** 그 캐릭터의 몸 명세. 리그가 선언한 것을 그대로 쓴다(3D 모델은 불러오기 전에도 얼굴 몸이다). */
+const bodyOf = (avatar: Avatar): BodySpec => rigOf(avatar)?.body ?? FACE_BODY;
 
 /** 목소리 칩에 먼저 보여 줄 것. 나머지는 개발자 패널에서 고른다. */
 const FEATURED_VOICES = ['marin', 'cedar', 'coral', 'ash'];
@@ -92,10 +96,19 @@ const key = new THREE.DirectionalLight(0xffffff, 2.2);
 key.position.set(0.6, 1.2, 1.5);
 scene.add(key);
 
-/** 코드로 그린 얼굴들. 처음 고를 때 만든다. */
+/**
+ * 코드로 그린 캐릭터들. 처음 고를 때 만든다.
+ * 여기서 만들고 나면 화면은 리그의 종류를 가리지 않는다: 몸 명세, 카메라 위치, 프레임 입히기를 모두 공통 형태(Rig)로 다룬다.
+ */
 type DrawnAvatar = Exclude<Avatar, 'vrm'>;
-const DRAWN: DrawnAvatar[] = ['faceling', 'robot', 'dog'];
-const rigs: { faceling?: FacelingRig; robot?: RobotRig; dog?: DogRig } = {};
+const MAKE: Record<DrawnAvatar, () => Rig> = {
+  faceling: () => new FacelingRig(),
+  robot: () => new RobotRig(),
+  dog: () => new DogRig(),
+  arm: () => new ArmRig(),
+};
+const DRAWN = Object.keys(MAKE) as DrawnAvatar[];
+const rigs: Partial<Record<DrawnAvatar, Rig>> = {};
 
 /**
  * 3D 얼굴(VRM). 직접 고른 파일이 없으면 three-vrm 의 예제 모델을 실행 중에 불러온다.
@@ -150,32 +163,36 @@ function showModelInfo(label: string): void {
   $('model-info').textContent = `${name}${author ? ` (${author})` : ''}. ${ability}`;
 }
 
-function ensureRig(which: DrawnAvatar): FacelingRig | RobotRig | DogRig {
-  if (which === 'faceling') return rigs.faceling ?? (scene.add((rigs.faceling = new FacelingRig()).object), rigs.faceling);
-  if (which === 'robot') return rigs.robot ?? (scene.add((rigs.robot = new RobotRig()).object), rigs.robot);
-  return rigs.dog ?? (scene.add((rigs.dog = new DogRig()).object), rigs.dog);
+function ensureRig(which: DrawnAvatar): Rig {
+  let rig = rigs[which];
+  if (!rig) {
+    rig = rigs[which] = MAKE[which]();
+    scene.add(rig.object);
+  }
+  return rig;
 }
 
-/** 그 얼굴만 보이게 하고 카메라를 맞춘다 */
+/** 그 캐릭터의 리그. 3D 모델은 다 불러오기 전이면 없다. */
+const rigOf = (avatar: Avatar): Rig | null => (avatar === 'vrm' ? vrmRig : ensureRig(avatar));
+
+/** 그 캐릭터만 보이게 하고 카메라를 맞춘다 */
 function frameAvatar(which: Avatar): void {
-  if (which === 'vrm') {
-    if (vrm) {
-      const head = new THREE.Vector3();
-      vrm.humanoid.getNormalizedBoneNode('head')?.getWorldPosition(head);
-      camera.position.set(head.x, head.y + 0.04, head.z + 1.15);
-      camera.lookAt(head.x, head.y + 0.02, head.z);
-    }
-  } else {
-    const c = ensureRig(which).headCenter;
-    camera.position.set(c.x, c.y + (which === 'robot' ? 0.02 : 0), c.z + 1.35);
-    camera.lookAt(c.x, c.y - (which === 'robot' ? 0.03 : 0), c.z);
+  const rig = rigOf(which);
+  if (rig) {
+    camera.position.copy(rig.view.position);
+    camera.lookAt(rig.view.target);
   }
-  for (const drawn of DRAWN) if (rigs[drawn]) rigs[drawn].object.visible = which === drawn;
-  if (vrm) vrm.scene.visible = which === 'vrm';
+  for (const drawn of DRAWN) {
+    const other = rigs[drawn];
+    if (other) other.object.visible = which === drawn;
+  }
+  if (vrmRig) vrmRig.object.visible = which === 'vrm';
 }
 
 function showAvatar(next: Avatar): void {
   state.avatar = next;
+  // 판단에 이 몸이 할 수 있는 움직임을 함께 묻는다. 무엇을 할 수 있는지는 리그가 선언한다.
+  director.body = bodyOf(next);
   if (next === 'vrm' && !vrm && !vrmLoading) {
     vrmLoading = loadVrm(SAMPLE_VRM, 'three-vrm 예제 모델')
       .then(() => {
@@ -223,7 +240,8 @@ async function judge(input: AnalyzerInput): Promise<Judgment> {
   const res = await fetch('/api/judge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    // 몸 명세는 이름만 보낸다. 설명은 서버가 가진 명세에서 나온다.
+    body: JSON.stringify({ ...input, body: input.body?.name }),
   });
   const body = (await res.json()) as { judgment?: Judgment; error?: string };
   if (!res.ok || !body.judgment) {
@@ -235,6 +253,8 @@ async function judge(input: AnalyzerInput): Promise<Judgment> {
 
 const face = new LiveFace();
 const director = new LiveDirector(face, { judge, clock, onStats: showStats });
+// 판단 방식: 부위마다 선택지에서 고르기(기본) 또는 부위별 수치로 직접 판단하기(실험). 주소에 ?mode=channels 로도 켠다.
+director.mode = (params.get('mode') ?? store.get('mode')) === 'channels' ? 'channels' : 'choices';
 
 /** 개발자 패널의 진행 상황 줄 */
 const setStatus = (text: string): void => void ($('status').textContent = text);
@@ -363,6 +383,7 @@ async function startConversation(withoutMic: boolean): Promise<void> {
   try {
     await connection.connect({
       voice: state.voice,
+      character: bodyOf(state.avatar).name,
       withoutMic,
       greet: $<HTMLInputElement>('greet').checked,
       liveReactions: $<HTMLInputElement>('live-reactions').checked,
@@ -654,8 +675,8 @@ function closeChange(apply: boolean): void {
     return;
   }
   store.set('avatar', state.avatar);
-  // 목소리는 연결한 뒤에는 바꿀 수 없어서 다시 연결한다
-  if (state.conn === 'on' && state.voice !== before.voice) {
+  // 목소리와 AI 가 아는 자기 몸은 연결한 뒤에는 바꿀 수 없어서 다시 연결한다
+  if (state.conn === 'on' && (state.voice !== before.voice || bodyOf(state.avatar).name !== bodyOf(before.avatar).name)) {
     const withoutMic = state.withoutMic;
     connection.disconnect();
     state.conn = 'off';
@@ -698,6 +719,8 @@ function buildRegionRows(): void {
 
 const actionLabel = (region: Region, action: string): string => regionSpec(region).actions[action]?.label ?? action;
 
+const DURATION_LABEL = { instant: '순간', brief: '잠깐', line: '말하는 동안', stay: '머무름', until_told: '시킬 때까지' } as const;
+
 function showDebug(frame: LiveFrame): void {
   if (document.body.dataset.dev !== 'on') return;
   for (const region of REGION_KEYS) {
@@ -712,6 +735,19 @@ function showDebug(frame: LiveFrame): void {
     if (val) val.textContent = best.w > 0.03 ? `${actionLabel(region, best.action)} ${best.w.toFixed(2)}` : '-';
   }
   const cue = frame.debug.cue;
+  // 부위별 수치 판단이면 세기가 큰 채널과 유지 시간을 보여 준다
+  const judgedChannels = cue?.judgment.channels;
+  if (cue && judgedChannels) {
+    const top = Object.entries(judgedChannels)
+      .sort((a, b) => b[1].amount - a[1].amount)
+      .slice(0, 10)
+      .map(([name, v]) => `${name} ${v.amount.toFixed(2)} ${DURATION_LABEL[v.duration]}`);
+    $('judged').textContent =
+      `${cue.kind === 'react' ? '듣는 반응' : '말하는 표정'} · "${cue.text}" · 부위별 수치 · ` +
+      (top.join(', ') || '움직임 없음') +
+      (cue.judgment.reset ? ' · 쉬는 자세로' : '');
+    return;
+  }
   $('judged').textContent = cue
     ? `${cue.kind === 'react' ? '듣는 반응' : '말하는 표정'} · "${cue.text}" · ` +
       REGION_KEYS.map((r) => {
@@ -776,14 +812,9 @@ function tick(): void {
   const frame = face.update(now, mouth);
   lastFrame = frame;
   const dt = frameClock.getDelta();
-  if (state.avatar === 'vrm') {
-    vrmRig?.apply(frame);
-    // 머리카락과 옷의 흔들림(스프링 본)도 여기서 움직인다
-    vrm?.update(dt);
-  } else {
-    rigs[state.avatar]?.apply(frame);
-    if (state.avatar === 'robot') rigs.robot?.setLamp(frame.shapes.jawOpen ?? 0);
-  }
+  const rig = rigOf(state.avatar);
+  rig?.apply(frame);
+  rig?.update?.(dt);
   renderer.render(scene, camera);
   showDebug(frame);
   showAction(frame, now);
@@ -793,6 +824,14 @@ function tick(): void {
 
 // ── 조작 연결 ─────────────────────────────────────────────
 function bindControls(): void {
+  // 판단 방식 전환. 다음 판단부터 바뀐다.
+  const channelMode = $<HTMLInputElement>('channel-mode');
+  channelMode.checked = director.mode === 'channels';
+  channelMode.addEventListener('change', () => {
+    director.mode = channelMode.checked ? 'channels' : 'choices';
+    store.set('mode', director.mode);
+  });
+
   // 온보딩
   for (const b of document.querySelectorAll<HTMLElement>('[data-go]')) b.addEventListener('click', () => goStep(Number(b.dataset.go)));
   $('step-2-back').addEventListener('click', () => (state.changing ? closeChange(false) : goStep(1)));
@@ -902,6 +941,8 @@ Object.assign(window, {
     get stats() {
       return director.stats;
     },
+    /** 표정을 직접 예약해 볼 때 쓴다 */
+    face,
     get simulating() {
       return simulation.running;
     },

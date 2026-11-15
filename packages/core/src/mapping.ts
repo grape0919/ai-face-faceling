@@ -3,7 +3,7 @@ import { VARIANTS, type Weights } from './weights.js';
 /** 엔진 출력의 한 프레임. shapes 는 ARKit 52 blendshape 이름을 쓴다. 각도는 라디안. */
 export interface FacePose {
   shapes: Record<string, number>;
-  /** pitch 양수 = 고개 숙임, yaw 양수 = 화면 기준 왼쪽으로 돌림, roll 양수 = 갸웃 */
+  /** pitch 양수 = 고개 숙임, yaw 양수 = 캐릭터의 왼쪽(보는 사람에게는 화면 오른쪽)으로 돌림, roll 양수 = 갸웃 */
   head: { pitch: number; yaw: number; roll: number };
   /** 시선. -1~1, x 양수 = 옆으로, y 양수 = 위로 */
   gaze: { x: number; y: number };
@@ -88,6 +88,13 @@ export const ACTION_POSES: Record<string, ActionPose> = {
   'head.tilt': { shapes: {}, head: { roll: 0.09 } },
   'head.lowered': { shapes: {}, head: { pitch: 0.09 }, gaze: { y: -0.1 } },
   'head.raised': { shapes: {}, head: { pitch: -0.07 } },
+
+  // 일부러 하는 움직임(move)을 얼굴은 고개 돌리기로 옮긴다. 감정에서 나오는 머리 움직임보다 훨씬 크고, 눈도 그쪽을 본다.
+  // 방향은 보는 사람 기준이다. 얼굴이 할 수 없는 것(앞으로, 흔들기)은 정의가 없어 아무 일도 하지 않는다.
+  'move.up': { shapes: {}, head: { pitch: -0.3 }, gaze: { y: 0.3 } },
+  'move.down': { shapes: {}, head: { pitch: 0.32 }, gaze: { y: -0.3 } },
+  'move.left': { shapes: {}, head: { yaw: -0.45 }, gaze: { x: -0.3 } },
+  'move.right': { shapes: {}, head: { yaw: 0.45 }, gaze: { x: 0.3 } },
 };
 
 const sideName = (side: 'L' | 'R'): string => (side === 'L' ? 'Left' : 'Right');

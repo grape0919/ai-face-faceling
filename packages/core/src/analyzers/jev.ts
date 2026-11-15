@@ -1,4 +1,6 @@
-import { REGION_KEYS, regionSpec, type RegionProbs } from '../regions.js';
+import { FACE_REGIONS, OPTIONAL_REGIONS, regionSpec, restProbs, type Region } from '../regions.js';
+import type { BodySpec } from '../body.js';
+import { channelQuestions, readChannelAnswers } from '../channels.js';
 import { clamp, type Analyzer, type AnalyzerInput, type Judgment } from '../judgment.js';
 import {
   QUESTIONS_VERSION,
@@ -49,31 +51,57 @@ export function createJevAnalyzer(options: JevAnalyzerOptions = {}): Analyzer {
   const model = options.model || env('JEV_MODEL') || 'jev-latest';
 
   // 말하는 구간과 듣는 구간은 질문 세트가 따로다. 듣는 구간에서 빠진 선택지는 아래에서 확률 0 으로 채운다.
-  const questionsFor = (role: Role): Record<string, unknown> => {
-    const questions: Record<string, unknown> = { intensity: { type: 'score', ...intensityQuestion(role) } };
-    for (const region of REGION_KEYS) {
-      questions[region] = {
-        type: 'choice',
-        instructions: regionInstructions(region, role),
-        criteria: regionCriteria(region, role),
-      };
+  // 몸 명세가 있으면 AI 가 말하는 구간에서 그 몸의 움직임을 함께 묻고, 선택지 설명도 그 몸에 맞춘다.
+  // 질문 세트는 역할과 몸의 조합마다 한 번 만들어 둔다(같은 이름의 명세는 내용이 같다고 본다).
+  const sets = new Map<string, { questions: Record<string, unknown>; asked: Region[] }>();
+  const questionsFor = (role: Role, body?: BodySpec): { questions: Record<string, unknown>; asked: Region[] } => {
+    const speaking = role === 'speaking' ? body : undefined;
+    const key = `${role}:${speaking?.name ?? ''}`;
+    let set = sets.get(key);
+    if (!set) {
+      const extra = speaking && Object.keys(speaking.moves).length > 0 ? OPTIONAL_REGIONS : [];
+      const asked = [...FACE_REGIONS, ...extra];
+      const questions: Record<string, unknown> = { intensity: { type: 'score', ...intensityQuestion(role) } };
+      for (const region of asked) {
+        questions[region] = {
+          type: 'choice',
+          instructions: regionInstructions(region, role, speaking),
+          criteria: regionCriteria(region, role, speaking),
+        };
+      }
+      set = { questions, asked };
+      sets.set(key, set);
     }
-    return questions;
+    return set;
   };
-  const questions: Record<Role, Record<string, unknown>> = {
-    speaking: questionsFor('speaking'),
-    listening: questionsFor('listening'),
-  };
+
+  const channelSets = new Map<string, Record<string, unknown>>();
 
   return {
     name: 'jev',
     version: `${model}:${QUESTIONS_VERSION}`,
     async analyze(input: AnalyzerInput): Promise<Judgment> {
       const state = toFaceState(input);
+      // 부위별 수치 판단: 그 몸의 채널마다 세기와 유지 시간을 묻는다
+      if (input.mode === 'channels' && input.body?.channels?.length) {
+        const body = input.body;
+        const cacheKey = `${state.role}:${body.name}`;
+        let channelSet = channelSets.get(cacheKey);
+        if (!channelSet) channelSets.set(cacheKey, (channelSet = channelQuestions(body, state.role)));
+        const response = await fetch(ENDPOINT, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, state, questions: channelSet }),
+        });
+        if (!response.ok) throw new Error(`Jev 요청 실패 ${response.status}: ${await response.text()}`);
+        const { answers } = (await response.json()) as { answers: Record<string, { score?: number; choice?: string; probabilities?: Record<string, number> }> };
+        return { intensity: 0, regions: restProbs(), ...readChannelAnswers(body, state.role, answers) };
+      }
+      const { questions, asked } = questionsFor(state.role, input.body);
       const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, state, questions: questions[state.role] }),
+        body: JSON.stringify({ model, state, questions }),
       });
       if (!res.ok) throw new Error(`Jev 요청 실패 ${res.status}: ${await res.text()}`);
       const json = (await res.json()) as JevResponse;
@@ -83,8 +111,9 @@ export function createJevAnalyzer(options: JevAnalyzerOptions = {}): Analyzer {
         throw new Error(`Jev 응답에 intensity 답이 없습니다: ${JSON.stringify(json.answers.intensity)}`);
       }
 
-      const regions = {} as RegionProbs;
-      for (const region of REGION_KEYS) {
+      // 묻지 않은 부위는 기본 선택지로 채운다
+      const regions = restProbs();
+      for (const region of asked) {
         const a = json.answers[region] as ChoiceAnswer | undefined;
         if (!a || a.type !== 'choice' || !a.probabilities) {
           throw new Error(`Jev 응답에 choice 답이 없습니다: ${region} ${JSON.stringify(a)}`);

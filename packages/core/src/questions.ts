@@ -1,4 +1,5 @@
 import { REGION_KEYS, regionSpec, type Region } from './regions.js';
+import type { BodySpec } from './body.js';
 import type { AnalyzerInput } from './judgment.js';
 
 /**
@@ -7,7 +8,7 @@ import type { AnalyzerInput } from './judgment.js';
  * 부위와 선택지는 shared/regions.ts 에 있다. Jev 와 LLM 대조군이 같은 문구를 쓴다.
  * 문구나 선택지를 바꾸면 QUESTIONS_VERSION 을 올린다.
  */
-export const QUESTIONS_VERSION = 'r4';
+export const QUESTIONS_VERSION = 'r9';
 
 export type Role = 'speaking' | 'listening';
 export const ROLES: Role[] = ['speaking', 'listening'];
@@ -29,7 +30,13 @@ export const toFaceState = (input: AnalyzerInput): FaceState => ({
   ...(input.following?.trim() ? { following: input.following.trim() } : {}),
 });
 
-const INTRO = 'An AI assistant with an animated human-like face is in a voice conversation with a user. ';
+/**
+ * 감정은 몸이 무엇이든 얼굴 말투로 판단한다: 얼굴에 드러난다고 치고 부위별로 묻는다.
+ * 얼굴 캐릭터는 그대로 쓰고, 얼굴이 없는 몸은 그 판단을 자기 몸짓으로 옮긴다(feelings.ts).
+ * 그래서 "얼굴을 가진 AI"가 아니라 "감정이 얼굴에 드러난다고 그려 보라"고 쓴다.
+ */
+const INTRO =
+  'An AI assistant is in a voice conversation with a user. Picture its feelings shown on an animated human-like face. ';
 const COMMON =
   '`context` holds the preceding lines. `following`, when present, is what the same speaker says right after `current` ' +
   '(it may be cut off). Use both only to understand what `current` means and feels like: a short line such as ' +
@@ -45,18 +52,32 @@ export const SCENES: Record<Role, string> = {
     `Most everyday or factual lines call for a calm, attentive face. ${COMMON}`,
 };
 
-export const regionInstructions = (region: Region, role: Role): string =>
-  role === 'speaking'
+export const regionInstructions = (region: Region, role: Role, body?: BodySpec): string => {
+  const prompt = regionSpec(region).prompt;
+  if (prompt) {
+    const scene = prompt.replace('{body}', body?.describe ?? 'a character.');
+    return `${scene} ${COMMON.replace('Judge the face for', 'Judge the movement for')} Pick the single best option.`;
+  }
+  return role === 'speaking'
     ? `${SCENES.speaking} To look natural and emotionally fitting, what should ${regionSpec(region).subject} do while saying \`current\`? ` +
       'Pick the single best option. Pick the neutral option when the line carries no clear feeling.'
     : `${SCENES.listening} What should ${regionSpec(region).subject} do while listening to \`current\`? ` +
       'Pick the single best option. Pick the neutral option unless the line clearly calls for a reaction.';
+};
 
-/** 선택지 이름 → 설명. 듣는 구간에서는 듣는 동안 고를 수 없는 동작이 빠진다. */
-export function regionCriteria(region: Region, role: Role): Record<string, string> {
+/**
+ * 선택지 이름 → 설명. 듣는 구간에서는 듣는 동안 고를 수 없는 동작이 빠진다.
+ * 몸 명세가 있으면 그 몸에 맞춘다: 움직임(move)은 그 몸이 할 수 있는 것만 그 몸의 설명으로 묻고,
+ * 다른 동작도 그 몸에서 뜻이 달라지는 것은 명세의 설명을 쓴다.
+ */
+export function regionCriteria(region: Region, role: Role, body?: BodySpec): Record<string, string> {
+  const spec = regionSpec(region);
   const out: Record<string, string> = {};
-  for (const [name, a] of Object.entries(regionSpec(region).actions)) {
-    const text = role === 'speaking' ? a.desc : a.listen;
+  for (const [name, a] of Object.entries(spec.actions)) {
+    const moves = region === 'move' ? (body?.moves as Record<string, string> | undefined) : undefined;
+    if (moves && name !== spec.rest && !(name in moves)) continue;
+    const custom = moves ? moves[name] : body?.actions?.[`${region}.${name}`];
+    const text = role === 'speaking' ? (custom ?? a.desc) : a.listen;
     if (text !== false) out[name] = text;
   }
   return out;
@@ -65,9 +86,10 @@ export function regionCriteria(region: Region, role: Role): Record<string, strin
 export const intensityQuestion = (role: Role): { instructions: string; criteria: string[] } => ({
   instructions:
     role === 'speaking'
-      ? `${SCENES.speaking} How strong should the assistant's facial expression be while saying \`current\`?`
-      : `${SCENES.listening} How strong should the assistant's facial reaction be while listening to \`current\`?`,
+      ? `${SCENES.speaking} How strongly should the assistant show its feeling while saying \`current\`?`
+      : `${SCENES.listening} How strongly should the assistant react while listening to \`current\`?`,
   criteria: [
+    // 감정이 얼굴에 드러난다고 그려 보고 고르는 것이라 얼굴 말투 그대로 둔다. 바꾸면 세기가 전체적으로 낮게 나온다.
     'None: a neutral, resting face',
     'Slight: a faint trace of expression',
     'Moderate: a clear but ordinary conversational expression',

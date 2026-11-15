@@ -20,7 +20,8 @@ export function createRemoteJudge(options: RemoteJudgeOptions = {}): (input: Ana
     const res = await doFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...options.headers },
-      body: JSON.stringify(input),
+      // 몸 명세는 이름만 보낸다. 질문에 들어갈 설명은 서버가 가진 명세에서 나온다.
+      body: JSON.stringify({ ...input, body: input.body?.name }),
     });
     const body = (await res.json().catch(() => ({}))) as { judgment?: Judgment; error?: string };
     if (!res.ok || !body.judgment) throw new Error(body.error ?? `판단 요청 실패 (${res.status})`);

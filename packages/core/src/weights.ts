@@ -12,8 +12,8 @@ export interface Variant {
   side: 'L' | 'R' | null;
 }
 
-/** 머리의 끄덕임과 가로젓기는 유지되는 자세가 아니라 순간 동작으로 처리한다. */
-const TRANSIENT = new Set(['head.nod', 'head.shake']);
+/** 끄덕임, 가로젓기, 윙크는 유지되는 자세가 아니라 순간 동작으로 처리한다. */
+const TRANSIENT = new Set(['head.nod', 'head.shake', 'eyes.wink']);
 
 export const VARIANTS: Variant[] = REGION_KEYS.flatMap((region) => {
   const spec = regionSpec(region);
@@ -38,20 +38,34 @@ export const actionWeight = (p: number): number => clamp((p - PROB_FLOOR) / (PRO
 /** 표정 세기 판단 → 전체 배율 */
 export const amplitude = (intensity: number): number => 0.25 + 0.75 * clamp(intensity);
 
-/** 판단값을 동작별 목표 세기로 옮긴다. 분석기가 고른 것을 그대로 따른다. */
+/**
+ * 실제로 하는 동작(팔 동작 등, 질문이 prompt 로 따로 있는 부위)은 감정보다 기준이 엄격하다.
+ * 방향을 설명만 하는 말("오른쪽은 이쪽이에요")에 애매한 확률이 나와도 움직이지 않고, 또렷할 때만 온전히 한다.
+ */
+export const COMMAND_FLOOR = 0.5;
+export const COMMAND_FULL = 0.85;
+export const commandWeight = (p: number): number => clamp((p - COMMAND_FLOOR) / (COMMAND_FULL - COMMAND_FLOOR));
+
+/**
+ * 판단값을 동작별 목표 세기로 옮긴다. 분석기가 고른 것을 그대로 따른다.
+ * 감정 동작은 표정 세기에 비례하고, 실제로 하는 동작은 표정 세기와 상관없이 한다.
+ */
 export function targetWeights(j: Judgment, side: 'L' | 'R', scale = 1): Weights {
   const amp = amplitude(j.intensity) * scale;
   const out = zeroWeights();
   for (const v of VARIANTS) {
     if (v.side && v.side !== side) continue;
-    out[v.key] = actionWeight(j.regions[v.region]?.[v.action] ?? 0) * amp;
+    const p = j.regions[v.region]?.[v.action] ?? 0;
+    out[v.key] = regionSpec(v.region).prompt ? commandWeight(p) * scale : actionWeight(p) * amp;
   }
   return out;
 }
 
 export interface Gesture {
-  type: 'nod' | 'shake' | 'flash';
+  type: 'nod' | 'shake' | 'flash' | 'wink';
   t: number;
   dur: number;
   amp: number;
+  /** 윙크하는 눈(캐릭터 기준) */
+  side?: 'L' | 'R';
 }

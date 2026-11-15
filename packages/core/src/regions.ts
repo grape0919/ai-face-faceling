@@ -22,6 +22,16 @@ export interface RegionSpec {
   /** 움직이지 않는 기본 선택지 */
   rest: string;
   actions: Record<string, ActionSpec>;
+  /**
+   * 몸 명세(BodySpec)가 있을 때만 묻는 부위. 명세에 적힌 선택지만 묻고, 묻지 않으면 기본 선택지로 채운다.
+   * AI 가 말하는 구간에서만 묻는다.
+   */
+  optional?: boolean;
+  /**
+   * 감정 대신 "지금 실제로 하는 동작"을 묻는 부위의 질문. 있으면 기본 질문 문구 대신 쓴다.
+   * {body} 자리에 몸 명세의 설명(describe)이 들어간다.
+   */
+  prompt?: string;
 }
 
 export const REGIONS = {
@@ -87,6 +97,13 @@ export const REGIONS = {
         label: '내리뜸',
         desc: 'Lids slightly lowered and heavy: calm tenderness, sadness, regret, tiredness.',
         listen: 'The user shares something sad or painful: a gentle, compassionate look.',
+      },
+      // 감정이 아니라 실제로 하는 동작. 순간 동작으로 처리한다(weights.ts 의 TRANSIENT).
+      wink: {
+        label: '윙크',
+        desc: 'One eye closes briefly in a playful wink: the assistant is actually winking right now, e.g. it was asked to wink and does it, or teases with a wink. Not for merely talking about winking or describing a wink it already did.',
+        asymmetric: true,
+        listen: false,
       },
     },
   },
@@ -246,10 +263,49 @@ export const REGIONS = {
       },
     },
   },
+  /**
+   * 일부러 하는 움직임. 감정이 아니라 AI 가 실제로 하는 동작을 묻는다("오른쪽으로 움직여 봐" → "네, 오른쪽으로 쭉!").
+   * 몸과 상관없는 의도다: 같은 move.left 를 얼굴은 고개 돌리기로, 로봇팔은 팔 뻗기로 옮긴다.
+   * 그 몸이 할 수 있는 선택지와 그 몸에서의 설명은 몸 명세(BodySpec.moves)가 정하고, 여기의 설명은 명세에 설명이 없을 때 쓴다.
+   * 방향은 보는 사람 기준이다: right 는 화면 오른쪽.
+   */
+  move: {
+    label: '움직임',
+    subject: "the assistant's body",
+    rest: 'rest',
+    optional: true,
+    prompt:
+      'The assistant has a body that the user sees on a screen: {body} When asked, it can move that body on purpose. ' +
+      'How should it deliberately move while the assistant says `current`? ' +
+      'Pick a movement only when the assistant is actually doing it right now or says it has just done it, for example because the user asked and it agrees. ' +
+      'Left and right are as the user sees them on the screen. Otherwise pick rest; feelings are shown separately.',
+    actions: {
+      rest: {
+        label: '그대로',
+        desc: 'No deliberate movement. Includes ordinary talk, describing or explaining a direction without moving, refusing, or saying it cannot.',
+        listen: 'Listening.',
+      },
+      up: { label: '위로', desc: 'Moving, reaching or looking up on purpose right now.', listen: false },
+      down: { label: '아래로', desc: 'Moving, reaching or looking down on purpose right now.', listen: false },
+      left: { label: '왼쪽으로', desc: 'Moving or turning to the left right now.', listen: false },
+      right: { label: '오른쪽으로', desc: 'Moving or turning to the right right now.', listen: false },
+      forward: { label: '앞으로', desc: 'Moving toward the user right now: offering something, a high five, pointing at them.', listen: false },
+      wave: { label: '흔들기', desc: 'Waving right now: hello, goodbye, cheering someone on.', listen: false },
+      home: {
+        label: '제자리',
+        desc: 'Going back to its resting position, facing the user, right now because it was asked to or says so.',
+        listen: false,
+      },
+    },
+  },
 } as const satisfies Record<string, RegionSpec>;
 
 export type Region = keyof typeof REGIONS;
 export const REGION_KEYS = Object.keys(REGIONS) as Region[];
+/** 언제나 묻는 부위. 이름은 얼굴 부위지만 뜻은 감정 표현이라, 얼굴 없는 몸도 이 판단을 몸짓으로 옮겨 쓴다. */
+export const FACE_REGIONS = REGION_KEYS.filter((r) => !(REGIONS[r] as RegionSpec).optional);
+/** 몸 명세가 있을 때만 묻는 부위 */
+export const OPTIONAL_REGIONS = REGION_KEYS.filter((r) => (REGIONS[r] as RegionSpec).optional);
 
 /** 부위별 선택지 확률. 선택지 이름 → 0~1, 합은 1 근처. */
 export type RegionProbs = Record<Region, Record<string, number>>;
