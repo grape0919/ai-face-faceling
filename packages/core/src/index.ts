@@ -5,6 +5,7 @@
  * '@faceling/core/lipsync' 로 따로 가져온다. 그래야 Node 에서 이 진입점을 써도 DOM 타입이 필요 없다.
  */
 export * from './body.js';
+export * from './channels.js';
 export * from './clauses.js';
 export * from './compositor.js';
 export * from './face.js';

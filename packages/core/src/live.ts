@@ -1,5 +1,6 @@
 import { charCount, ClauseSplitter, type Clause } from './clauses.js';
-import { BLINK_DURATION, Compositor, bell, type Expression, type MouthFeatures, type TurnState } from './compositor.js';
+import type { ChannelJudgment } from './channels.js';
+import { BLINK_DURATION, Compositor, bell, type Expression, type MouthFeatures, type Pulse, type TurnState } from './compositor.js';
 import { facePose } from './face.js';
 import type { AnalyzerInput, Judgment } from './judgment.js';
 import type { FacePose } from './mapping.js';
@@ -43,6 +44,37 @@ export interface LiveFrame extends Frame {
 /** 일부러 하는 움직임(질문이 prompt 로 따로 있는 부위)의 세기 키 */
 const COMMAND_KEYS = VARIANTS.filter((v) => regionSpec(v.region).prompt).map((v) => v.key);
 
+/** 채널 하나가 t 부터 until 까지 이 세기로 걸려 있다 */
+interface Segment {
+  key: string;
+  t: number;
+  until: number;
+  value: number;
+  kind: LiveCue['kind'];
+  /** 일부러 취한 자세. 말이 끝나거나 사용자가 끼어들어도 남고, 반대 채널이나 쉬는 자세 신호가 와야 풀린다. */
+  sticky: boolean;
+}
+
+export interface ChannelSchedule {
+  /** 그 절의 소리가 시작하는 시각 */
+  t: number;
+  /** "말하는 동안"인 채널이 끝나는 시각 */
+  lineUntil: number;
+  /** "머무는 자세"인 채널이 끝나는 시각 */
+  stayUntil: number;
+  kind: LiveCue['kind'];
+  scale?: number;
+  /** 반대 채널의 이름. 새 자세가 오면 반대쪽 자세를 푼다. */
+  opposite?: (name: string) => string | undefined;
+  /** 유지 시간을 무시하고 모두 "말하는 동안"으로 건다(앞머리 판단, 듣는 반응) */
+  plain?: boolean;
+}
+
+/** "잠깐"인 채널이 이어지는 시간(초) */
+const BRIEF = 1.6;
+/** "시킬 때까지"인 자세도 이 시간이 지나면 풀린다(초). 푸는 신호를 놓쳤을 때의 안전장치다. */
+const UNTIL_TOLD_MAX = 120;
+
 /** 예약된 표정을 시각에 맞춰 얼굴로 만든다. */
 export class LiveFace {
   turn: TurnState = 'idle';
@@ -50,6 +82,9 @@ export class LiveFace {
   /** 붙잡아 둔 자세. 절이 끝나도 until 까지 남는다. 나중에 시작한 것이 앞의 것을 대신한다. */
   private holds: { t: number; until: number; weights: Weights }[] = [];
   private gestures: Gesture[] = [];
+  /** 부위별 수치 판단의 채널 예약 */
+  private segments: Segment[] = [];
+  private pulses: Pulse[] = [];
   private readonly compositor = new Compositor();
   private lastT: number | null = null;
   private nextBlink = 0;
@@ -73,8 +108,43 @@ export class LiveFace {
     this.holds.sort((a, b) => a.t - b.t);
   }
 
+  /**
+   * 부위별 수치 판단을 유지 시간대로 예약한다.
+   * 순간은 한 번 치고 빠지고, 잠깐은 1~2초, 말하는 동안은 그 절이 끝날 때까지, 머무는 자세와 시킬 때까지는 말이 끝난 뒤에도 남는다.
+   */
+  scheduleChannels(values: ChannelJudgment, s: ChannelSchedule): void {
+    for (const [key, { amount, duration }] of Object.entries(values)) {
+      const value = amount * (s.scale ?? 1);
+      if (value <= 0) continue;
+      const kind = s.plain ? 'line' : duration;
+      if (kind === 'instant') {
+        this.pulses.push({ key, t: s.t + 0.2, dur: 0.5, amp: value });
+        continue;
+      }
+      const sticky = kind === 'stay' || kind === 'until_told';
+      const until = kind === 'brief' ? s.t + BRIEF : kind === 'stay' ? s.stayUntil : kind === 'until_told' ? s.t + UNTIL_TOLD_MAX : s.lineUntil;
+      // 일부러 취하는 새 자세는 반대쪽 자세를 대신한다(오른쪽을 보다가 왼쪽을 보라고 하면 오른쪽은 풀린다)
+      const other = sticky ? s.opposite?.(key) : undefined;
+      if (other) for (const seg of this.segments) if (seg.key === other && seg.sticky && seg.until > s.t) seg.until = s.t;
+      this.segments.push({ key, t: s.t, until, value, kind: s.kind, sticky });
+    }
+  }
+
+  /** 붙잡아 둔 자세를 t 에 모두 푼다. AI 가 쉬는 자세로 돌아간다고 할 때 부른다. */
+  releaseChannels(t: number): void {
+    for (const seg of this.segments) if (seg.sticky && seg.until > t) seg.until = Math.max(seg.t, t);
+  }
+
   /** 지금 걸린 표정과 앞으로 예약된 표정을 모두 거둔다. kind 를 주면 그 종류만. */
   cancel(now: number, kind?: LiveCue['kind']): void {
+    // 채널도 같다. 다만 이미 취한 자세(sticky)는 둔다.
+    this.segments = this.segments.filter((seg) => {
+      if (kind && seg.kind !== kind) return true;
+      if (seg.t > now) return false;
+      if (!seg.sticky) seg.until = Math.min(seg.until, now);
+      return true;
+    });
+    if (kind !== 'react') this.pulses = this.pulses.filter((p) => p.t <= now);
     this.cues = this.cues.filter((cue) => {
       if (kind && cue.kind !== kind) return true;
       if (cue.t > now) return false;
@@ -89,6 +159,7 @@ export class LiveFace {
   /** 지금 걸려 있는 표정을 until 까지만 유지한다. */
   endBy(until: number, kind: LiveCue['kind']): void {
     for (const cue of this.cues) if (cue.kind === kind) cue.until = Math.min(cue.until, until);
+    for (const seg of this.segments) if (seg.kind === kind && !seg.sticky) seg.until = Math.min(seg.until, until);
   }
 
   activeCue(now: number): LiveCue | null {
@@ -129,7 +200,14 @@ export class LiveFace {
       target = { ...(target ?? zeroWeights()) };
       for (const [key, value] of Object.entries(held)) target[key] = Math.max(target[key] ?? 0, value);
     }
+    // 채널: 지금 걸려 있는 것 가운데 가장 큰 값이 목표다
+    this.segments = this.segments.filter((seg) => seg.until > now);
+    this.pulses = this.pulses.filter((p) => p.t + p.dur > now);
+    const channels: Record<string, number> = {};
+    for (const seg of this.segments) if (seg.t <= now) channels[seg.key] = Math.max(channels[seg.key] ?? 0, seg.value);
     const expression = this.compositor.express(now, dt, {
+      channels,
+      pulses: this.pulses,
       turn: this.turn,
       target,
       targetSince: cue?.t ?? 0,
@@ -273,6 +351,11 @@ export class LiveDirector {
    * 캐릭터를 바꾸면 바깥에서 고친다. 없으면 감정 표현만 판단한다.
    */
   body: BodySpec | null = null;
+  /**
+   * 판단 방식. 'channels' 면 몸 명세의 채널마다 세기와 유지 시간을 분석기에게 직접 묻는다(실험).
+   * 몸 명세에 채널이 없으면 'choices' 처럼 움직인다.
+   */
+  mode: 'choices' | 'channels' = 'choices';
 
   constructor(
     readonly face: LiveFace,
@@ -313,7 +396,7 @@ export class LiveDirector {
     if (!response.primeAsked && response.clauses.length === 0 && charCount(response.raw) >= PRIME_CHARS) {
       response.primeAsked = true;
       void this.options
-        .judge({ speaker: 'assistant', context: this.contextLines(true).join('\n'), current: response.raw.trim(), body: this.body ?? undefined })
+        .judge({ speaker: 'assistant', context: this.contextLines(true).join('\n'), current: response.raw.trim(), ...this.how() })
         .then((judgment) => {
           response.prime = judgment;
           this.tryPrime(response);
@@ -443,12 +526,15 @@ export class LiveDirector {
     const context = [...history, ...(head ? [`user: ${clip(head)}`] : [])].join('\n');
     const seq = ++this.reactSeq;
     return this.options
-      .judge({ speaker: 'user', context, current })
+      .judge({ speaker: 'user', context, current, ...this.how() })
       .then((judgment) => {
         // 더 새로운 말이 있거나 AI 가 이미 말을 시작했으면 버린다
         if (seq !== this.reactSeq || this.face.turn === 'speaking') return;
         const now = this.options.clock();
         this.face.cancel(now, 'react');
+        if (judgment.channels) {
+          this.face.scheduleChannels(judgment.channels, { t: now, lineUntil: now + REACT_MAX, stayUntil: now + REACT_MAX, kind: 'react', scale: REACT_SCALE, plain: true });
+        }
         this.face.schedule({
           t: now,
           until: now + REACT_MAX,
@@ -513,7 +599,7 @@ export class LiveDirector {
     const asked = this.options.clock();
     const following = this.followingOf(response, pending);
     void this.options
-      .judge({ speaker: 'assistant', context: pending.context, current: pending.clause.text, following, body: this.body ?? undefined })
+      .judge({ speaker: 'assistant', context: pending.context, current: pending.clause.text, following, ...this.how() })
       .then((judgment) => {
         const now = this.options.clock();
         pending.judgment = judgment;
@@ -530,6 +616,10 @@ export class LiveDirector {
     const now = this.options.clock();
     const t = Math.max(now, response.audioStart);
     this.markShown(response, t);
+    // 앞머리만 본 판단이므로 유지 시간은 믿지 않고, 첫 절의 판단이 올 때까지만 건다
+    if (response.prime.channels) {
+      this.face.scheduleChannels(response.prime.channels, { t, lineUntil: t + PRIME_HOLD, stayUntil: t + PRIME_HOLD, kind: 'speak', plain: true });
+    }
     this.face.schedule({
       t,
       until: t + PRIME_HOLD,
@@ -572,6 +662,17 @@ export class LiveDirector {
       const t = Math.max(now, start);
       const weights = targetWeights(pending.judgment, this.nextSide());
       this.face.schedule({ t, until: end + HOLD_AFTER, weights, kind: 'speak', text: pending.clause.text, judgment: pending.judgment });
+      // 부위별 수치 판단: 채널마다 받은 유지 시간대로 건다. 쉬는 자세로 돌아간다고 하면 붙잡아 둔 자세부터 푼다.
+      if (pending.judgment.channels) {
+        if (pending.judgment.reset) this.face.releaseChannels(t);
+        this.face.scheduleChannels(pending.judgment.channels, {
+          t,
+          lineUntil: end + HOLD_AFTER,
+          stayUntil: end + COMMAND_HOLD,
+          kind: 'speak',
+          opposite: (name) => this.oppositeOf(name),
+        });
+      }
       this.holdCommands(weights, t, end);
       this.addHeadGestures(pending.judgment, t + 0.15);
       // 윙크는 부탁받은 동작이라 기준이 엄격하고, 한 응답에 한 번만 한다
@@ -581,6 +682,17 @@ export class LiveDirector {
       }
     }
     this.options.onStats?.(this.stats);
+  }
+
+  /** 판단 요청에 함께 싣는 것: 지금 몸의 명세와 판단 방식 */
+  private how(): Pick<AnalyzerInput, 'body' | 'mode'> {
+    return { body: this.body ?? undefined, ...(this.mode === 'channels' && { mode: 'channels' as const }) };
+  }
+
+  /** 지금 몸에서 그 채널의 반대 채널. 명세의 어느 한쪽에만 적혀 있어도 찾는다. */
+  private oppositeOf(name: string): string | undefined {
+    const channels = this.body?.channels ?? [];
+    return channels.find((c) => c.name === name)?.opposite ?? channels.find((c) => c.opposite === name)?.name;
   }
 
   private addHeadGestures(judgment: Judgment, t: number): boolean {

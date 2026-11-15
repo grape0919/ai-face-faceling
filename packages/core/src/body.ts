@@ -1,3 +1,4 @@
+import type { ChannelSpec } from './channels.js';
 import type { REGIONS } from './regions.js';
 
 /** 일부러 하는 움직임의 이름(move 부위의 선택지에서 기본 선택지를 뺀 것) */
@@ -24,4 +25,10 @@ export interface BodySpec {
    * 예: 눈이 없는 로봇팔의 { 'eyes.wink': 'The light on its wrist blinks …' }
    */
   actions?: Record<string, string>;
+  /**
+   * 이 몸이 움직일 수 있는 부위(근육·관절) 전부. 부위별 수치 판단(mode: 'channels')에서 쓴다.
+   * 채널마다 세기와 유지 시간을 분석기가 직접 정하므로, 부위를 넣고 빼는 것은 이 목록의 한 줄이다.
+   * 없으면 그 몸은 선택지 판단만 한다.
+   */
+  channels?: ChannelSpec[];
 }

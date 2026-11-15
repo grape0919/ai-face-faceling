@@ -23,6 +23,18 @@ export interface CompositorInput {
   mouth: MouthFeatures | null;
   /** 깜빡임 정도 0~1 */
   blink: number;
+  /** 부위별 수치 판단의 채널별 목표 세기. 없는 채널은 0 으로 돌아간다. */
+  channels?: Record<string, number> | null;
+  /** 채널의 순간 동작(윙크, 끄덕임) */
+  pulses?: readonly Pulse[];
+}
+
+/** 채널을 잠깐 치고 빠지게 하는 순간 동작 */
+export interface Pulse {
+  key: string;
+  t: number;
+  dur: number;
+  amp: number;
 }
 
 /**
@@ -50,6 +62,11 @@ export interface Expression {
   blink: number;
   /** 지금 가장 강한 동작의 세기 0~1 */
   energy: number;
+  /**
+   * 부위별 수치 판단의 채널별 지금 세기 0~1. 키는 그 몸의 명세가 선언한 채널 이름이다(얼굴은 ARKit 이름, 강아지의 earsUp 등).
+   * 엔진은 이 이름들의 뜻을 모른다. 각 몸의 리그가 자기 채널을 읽는다. 선택지 판단만 쓸 때는 비어 있다.
+   */
+  channels: Record<string, number>;
 }
 
 /**
@@ -70,6 +87,9 @@ const ONSET_BOOST = 0.3;
 const ONSET_DECAY = 0.3;
 const ONSET_REGIONS = new Set<Region>(['brows', 'eyes']);
 const TURN_BLEND = 0.25;
+/** 채널이 목표를 따라가는 시간 상수(초) */
+const CHANNEL_ATTACK = 0.14;
+const CHANNEL_RELEASE = 0.5;
 export const BLINK_DURATION = 0.16;
 
 const approach = (current: number, target: number, dt: number, tau: number): number =>
@@ -85,6 +105,7 @@ export const bell = (x: number): number => (x <= 0 || x >= 1 ? 0 : Math.sin(Math
 export class Compositor {
   readonly weights = zeroWeights();
   private readonly turnWeight: Record<TurnState, number> = { idle: 1, listening: 0, thinking: 0, speaking: 0 };
+  private readonly channelNow: Record<string, number> = {};
 
   /**
    * 몸과 상관없는 표현 한 프레임을 만든다.
@@ -124,6 +145,24 @@ export class Compositor {
     gesture.winkL = Math.min(1, gesture.winkL);
     gesture.winkR = Math.min(1, gesture.winkR);
 
+    // 채널: 목표를 부드럽게 따라가고, 순간 동작은 그 위에 바로 얹는다(빨리 올라갔다가 잠깐 머물고 천천히 내려온다)
+    const wanted = input.channels ?? {};
+    for (const key of new Set([...Object.keys(this.channelNow), ...Object.keys(wanted)])) {
+      const target = wanted[key] ?? 0;
+      const current = this.channelNow[key] ?? 0;
+      const next = approach(current, target, dt, target > current ? CHANNEL_ATTACK : CHANNEL_RELEASE);
+      if (target === 0 && next < 0.002) delete this.channelNow[key];
+      else this.channelNow[key] = next;
+    }
+    const channels = { ...this.channelNow };
+    for (const p of input.pulses ?? []) {
+      const x = (t - p.t) / p.dur;
+      if (x <= 0 || x >= 1) continue;
+      const v = p.amp * (x < 0.2 ? x / 0.2 : x < 0.55 ? 1 : 1 - (x - 0.55) / 0.45);
+      channels[p.key] = Math.min(1, (channels[p.key] ?? 0) + v);
+    }
+    for (const value of Object.values(channels)) energy = Math.max(energy, value);
+
     const speaking = this.turnWeight.speaking;
     const m = input.mouth;
     const mouth =
@@ -139,6 +178,7 @@ export class Compositor {
       mouth,
       blink: input.blink,
       energy: Math.min(1, energy),
+      channels,
     };
   }
 

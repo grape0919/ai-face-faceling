@@ -173,6 +173,40 @@ Every rig in `@faceling/rigs` has the same shape, `Rig`: `body` (what it can do)
 - **Each body declares what it can do.** A `BodySpec` (`@faceling/core/body`) names the body, describes it in a sentence, lists the moves it can make with what each means for that body, and can reword other actions (the arm has no eyes, so its `eyes.wink` is asked as "the light on its wrist blinks"). The engine never knows the kind of body: it builds the questions from the spec, asks only the listed moves, and only while the AI speaks. `@faceling/rigs` ships `FACE_BODY` and `ARM_BODY`; every rig exposes its own as `rig.body`. Wire it in two places: `director.body = rig.body` in the browser, and `createJudgeHandler({ bodies: [FACE_BODY, ARM_BODY] })` on the server (the browser only sends the body's name). A new body is one spec plus one rig that maps `move.*` and the feelings to its own joints; nothing in the engine changes.
 - **The AI must know its body.** Otherwise it says "I can't move". `createSessionHandler({ characters: { [ARM_BODY.name]: '…' } })` appends a body description, in the language of the conversation, chosen by the `character` the browser sends (`connect({ character: rig.body.name })`). The demo tells the arm what it can do and to answer with a short "here it goes" line, and tells faces they can move their head but have no arms.
 
+#### Per-part values (experimental)
+
+Instead of picking an action from options, the judgment model can be asked directly about every part the body can move: **how much**, and **for how long**. A body just lists its parts, each with a name and one line of description:
+
+```ts
+export const DOG_BODY: BodySpec = {
+  ...FACE_BODY,
+  name: 'dog',
+  describe: 'a dog face with two big floppy ears. …',
+  channels: [
+    ...FACE_CHANNELS, // 44 ARKit expression muscles, 4 gaze directions, 7 head moves
+    { name: 'earsUp', describe: 'the ears perk up', opposite: 'earsDown' },
+    { name: 'earsDown', describe: 'the ears droop down or flatten back' },
+  ],
+};
+```
+
+Adding or removing a part is one line. The engine does not know what a channel is: it asks about each one, cleans up the answers and carries the values in the frame (`frame.expression.channels`, and `frame.shapes` for rigs that read ARKit names). The rig that owns the part reads it. Feelings, requested moves ("wiggle your ears") and timing all come from the same judgment, with no vocabulary of actions to maintain.
+
+| For each channel | Answer |
+|---|---|
+| How much | 0–1. Opposite channels are netted, values under a floor are dropped, and the rest is stretched back to 0–1 |
+| How long | `instant` (a wink, a nod), `brief` (a second or two), `line` (while the line is spoken: a feeling), `stay` (a pose kept for a few seconds after), `until_told` (kept until told otherwise) |
+
+One more question per line asks whether the AI is going back to its resting position, which releases held poses.
+
+Turn it on with `director.mode = 'channels'` (the demo: developer panel → "부위별 수치로 판단", or `?mode=channels`). Bodies without `channels` keep using options. What to know before relying on it:
+
+- **It asks far more questions.** A face is 55 channels, so a spoken line sends about 110 questions instead of 7. Responses took about 0.4 s instead of 0.22 s in our runs; if your judgment model bills per question, check the cost.
+- **Short replies land later.** A one-phrase answer can be half spoken before its judgment arrives.
+- **Coarser faces.** Named actions such as a one-sided smirk are hand-tuned shapes; here the model composes muscles itself. Strength is comparable on clear feelings, but the composed faces have only been checked as numbers, not by eye.
+- **Left and right are rarely different.** Text does not say which side. The channel description tells the model that a wink is the left eye.
+- Tried on about twenty Korean lines. Treat thresholds (`CHANNEL_FLOOR`, `CHANNEL_FULL`) and per-channel floors as first drafts.
+
 ### Other voice services
 
 `@faceling/openai-realtime` is only an adapter. To use another voice service, write one that calls these `LiveDirector` methods as its events arrive. This is the whole list.

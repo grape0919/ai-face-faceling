@@ -1,4 +1,5 @@
 import type { BodySpec } from './body.js';
+import type { ChannelJudgment } from './channels.js';
 import { restProbs, type RegionProbs } from './regions.js';
 
 export type Speaker = 'assistant' | 'user';
@@ -12,6 +13,13 @@ export interface Judgment {
   intensity: number;
   /** 부위별 선택지 확률 */
   regions: RegionProbs;
+  /**
+   * 부위별 수치 판단(mode: 'channels')의 결과. 채널마다 세기와 유지 시간이 들어 있다.
+   * 이것이 있으면 엔진은 intensity 와 regions 대신 이것으로 움직인다.
+   */
+  channels?: ChannelJudgment;
+  /** 부위별 수치 판단에서, AI 가 쉬는 자세로 돌아가는 중인지. 붙잡아 둔 자세를 푼다. */
+  reset?: boolean;
 }
 
 export interface AnalyzerInput {
@@ -30,6 +38,11 @@ export interface AnalyzerInput {
    * 그 몸에서 뜻이 달라지는 동작은 명세의 설명으로 묻는다. 없으면 감정 표현만 판단한다.
    */
   body?: BodySpec;
+  /**
+   * 판단 방식. 'channels' 이고 몸 명세에 채널이 있으면 부위별 수치로 판단한다(실험).
+   * 없거나 'choices' 면 부위마다 선택지에서 동작을 고른다.
+   */
+  mode?: 'choices' | 'channels';
 }
 
 export interface Analyzer {

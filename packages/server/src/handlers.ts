@@ -215,6 +215,7 @@ export function createJudgeHandler(options: JudgeHandlerOptions = {}): FetchHand
       following: text(body.following, 400),
       // 브라우저는 몸의 이름만 보낸다. 질문에 들어가는 설명은 서버가 가진 명세에서만 나온다.
       body: options.bodies?.find((b) => b.name === text(body.body, 40)),
+      mode: body.mode === 'channels' ? 'channels' : undefined,
     };
     if (!input.current.trim()) return json(400, { error: 'current 가 비어 있습니다' });
     const started = performance.now();

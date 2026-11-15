@@ -13,12 +13,34 @@ const CLOSED_MOUTH = [
   'mouthPucker', 'mouthShrugUpper', 'mouthShrugLower', 'cheekPuff', 'tongueOut',
 ];
 
+/** 머리와 시선 채널 → 각도. 방향은 보는 사람 기준이다(yaw 와 시선 x 의 양수가 화면 오른쪽). */
+const HEAD_GAZE: Record<string, (pose: FacePose, v: number, t: number) => void> = {
+  headUp: (p, v) => void (p.head.pitch -= 0.3 * v),
+  headDown: (p, v) => void (p.head.pitch += 0.32 * v),
+  headLeft: (p, v) => void (p.head.yaw -= 0.45 * v),
+  headRight: (p, v) => void (p.head.yaw += 0.45 * v),
+  headTilt: (p, v) => void (p.head.roll += 0.2 * v),
+  headNod: (p, v) => void (p.head.pitch += 0.14 * v),
+  headShake: (p, v, t) => void (p.head.yaw += 0.12 * v * Math.sin(t * 14)),
+  gazeUp: (p, v) => void (p.gaze.y += 0.6 * v),
+  gazeDown: (p, v) => void (p.gaze.y -= 0.6 * v),
+  gazeLeft: (p, v) => void (p.gaze.x -= 0.6 * v),
+  gazeRight: (p, v) => void (p.gaze.x += 0.6 * v),
+};
+
 export function facePose(e: Expression): FacePose {
   const { listening, thinking, speaking } = e.turn;
   const pose = emptyPose();
 
   // 1. 분석기가 고른 부위별 동작
   applyActions(pose, e.weights);
+  // 부위별 수치 판단의 채널. 머리와 시선은 각도로 옮기고, 나머지는 이름 그대로 싣는다
+  // (ARKit 이름은 얼굴 모양이 되고, earsUp 같은 그 몸만의 채널은 그것을 아는 리그가 읽는다).
+  for (const [name, value] of Object.entries(e.channels)) {
+    const turn = HEAD_GAZE[name];
+    if (turn) turn(pose, value, e.t);
+    else add(pose, name, value);
+  }
 
   // 2. 턴 상태
   add(pose, 'browInnerUp', 0.08 * listening);

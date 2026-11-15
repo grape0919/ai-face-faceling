@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
-import { FACE_BODY } from './bodies.js';
+import { DOG_BODY } from './bodies.js';
 import type { Rig } from './rig.js';
 
 /**
@@ -45,7 +45,7 @@ const dir = (side: Side): number => (side === 'Left' ? 1 : -1);
 export class DogRig implements Rig {
   readonly mode = 'dog' as const;
   /** 이 몸이 할 수 있는 움직임. LiveDirector.body 에 넣는다. */
-  readonly body = FACE_BODY;
+  readonly body = DOG_BODY;
   readonly supported: string[] = [...ARKIT_52];
   readonly object = new THREE.Group();
   /** 카메라가 바라볼 중심 */
@@ -163,9 +163,10 @@ export class DogRig implements Rig {
     const c = this.ctx;
     const d = dir(side);
     // 놀라거나 관심이 생기면 쫑긋 서고, 걱정하거나 미안하면 처진다
-    const lift = clamp01(this.v(`browOuterUp${side}`) * 0.7 + this.v(`eyeWide${side}`) * 0.6);
-    const droop = clamp01(this.v('browInnerUp') * 0.7 + this.v(`browDown${side}`) * 0.4 - lift);
-    const angle = -d * (0.32 + lift * 0.95 - droop * 0.2);
+    // 부위별 수치 판단에서는 귀 채널(earsUp, earsDown)이 직접 온다: 기분에 따라서도, "귀 움직여 봐"에도.
+    const lift = clamp01(this.v(`browOuterUp${side}`) * 0.7 + this.v(`eyeWide${side}`) * 0.6 + this.v('earsUp'));
+    const droop = clamp01(this.v('browInnerUp') * 0.7 + this.v(`browDown${side}`) * 0.4 - lift + this.v('earsDown') * 1.6);
+    const angle = -d * (0.32 + lift * 0.95 - droop * 0.25);
 
     c.save();
     c.translate(d * 228 - this.fx * 0.25, -150 - this.fy * 0.2 + droop * 18);

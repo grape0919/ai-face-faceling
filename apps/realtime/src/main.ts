@@ -253,6 +253,8 @@ async function judge(input: AnalyzerInput): Promise<Judgment> {
 
 const face = new LiveFace();
 const director = new LiveDirector(face, { judge, clock, onStats: showStats });
+// 판단 방식: 부위마다 선택지에서 고르기(기본) 또는 부위별 수치로 직접 판단하기(실험). 주소에 ?mode=channels 로도 켠다.
+director.mode = (params.get('mode') ?? store.get('mode')) === 'channels' ? 'channels' : 'choices';
 
 /** 개발자 패널의 진행 상황 줄 */
 const setStatus = (text: string): void => void ($('status').textContent = text);
@@ -717,6 +719,8 @@ function buildRegionRows(): void {
 
 const actionLabel = (region: Region, action: string): string => regionSpec(region).actions[action]?.label ?? action;
 
+const DURATION_LABEL = { instant: '순간', brief: '잠깐', line: '말하는 동안', stay: '머무름', until_told: '시킬 때까지' } as const;
+
 function showDebug(frame: LiveFrame): void {
   if (document.body.dataset.dev !== 'on') return;
   for (const region of REGION_KEYS) {
@@ -731,6 +735,19 @@ function showDebug(frame: LiveFrame): void {
     if (val) val.textContent = best.w > 0.03 ? `${actionLabel(region, best.action)} ${best.w.toFixed(2)}` : '-';
   }
   const cue = frame.debug.cue;
+  // 부위별 수치 판단이면 세기가 큰 채널과 유지 시간을 보여 준다
+  const judgedChannels = cue?.judgment.channels;
+  if (cue && judgedChannels) {
+    const top = Object.entries(judgedChannels)
+      .sort((a, b) => b[1].amount - a[1].amount)
+      .slice(0, 10)
+      .map(([name, v]) => `${name} ${v.amount.toFixed(2)} ${DURATION_LABEL[v.duration]}`);
+    $('judged').textContent =
+      `${cue.kind === 'react' ? '듣는 반응' : '말하는 표정'} · "${cue.text}" · 부위별 수치 · ` +
+      (top.join(', ') || '움직임 없음') +
+      (cue.judgment.reset ? ' · 쉬는 자세로' : '');
+    return;
+  }
   $('judged').textContent = cue
     ? `${cue.kind === 'react' ? '듣는 반응' : '말하는 표정'} · "${cue.text}" · ` +
       REGION_KEYS.map((r) => {
@@ -807,6 +824,14 @@ function tick(): void {
 
 // ── 조작 연결 ─────────────────────────────────────────────
 function bindControls(): void {
+  // 판단 방식 전환. 다음 판단부터 바뀐다.
+  const channelMode = $<HTMLInputElement>('channel-mode');
+  channelMode.checked = director.mode === 'channels';
+  channelMode.addEventListener('change', () => {
+    director.mode = channelMode.checked ? 'channels' : 'choices';
+    store.set('mode', director.mode);
+  });
+
   // 온보딩
   for (const b of document.querySelectorAll<HTMLElement>('[data-go]')) b.addEventListener('click', () => goStep(Number(b.dataset.go)));
   $('step-2-back').addEventListener('click', () => (state.changing ? closeChange(false) : goStep(1)));

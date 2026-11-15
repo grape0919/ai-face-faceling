@@ -1,5 +1,6 @@
 import { FACE_REGIONS, OPTIONAL_REGIONS, regionSpec, restProbs, type Region } from '../regions.js';
 import type { BodySpec } from '../body.js';
+import { channelQuestions, readChannelAnswers } from '../channels.js';
 import { clamp, type Analyzer, type AnalyzerInput, type Judgment } from '../judgment.js';
 import {
   QUESTIONS_VERSION,
@@ -74,11 +75,28 @@ export function createJevAnalyzer(options: JevAnalyzerOptions = {}): Analyzer {
     return set;
   };
 
+  const channelSets = new Map<string, Record<string, unknown>>();
+
   return {
     name: 'jev',
     version: `${model}:${QUESTIONS_VERSION}`,
     async analyze(input: AnalyzerInput): Promise<Judgment> {
       const state = toFaceState(input);
+      // 부위별 수치 판단: 그 몸의 채널마다 세기와 유지 시간을 묻는다
+      if (input.mode === 'channels' && input.body?.channels?.length) {
+        const body = input.body;
+        const cacheKey = `${state.role}:${body.name}`;
+        let channelSet = channelSets.get(cacheKey);
+        if (!channelSet) channelSets.set(cacheKey, (channelSet = channelQuestions(body, state.role)));
+        const response = await fetch(ENDPOINT, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, state, questions: channelSet }),
+        });
+        if (!response.ok) throw new Error(`Jev 요청 실패 ${response.status}: ${await response.text()}`);
+        const { answers } = (await response.json()) as { answers: Record<string, { score?: number; choice?: string; probabilities?: Record<string, number> }> };
+        return { intensity: 0, regions: restProbs(), ...readChannelAnswers(body, state.role, answers) };
+      }
       const { questions, asked } = questionsFor(state.role, input.body);
       const res = await fetch(ENDPOINT, {
         method: 'POST',

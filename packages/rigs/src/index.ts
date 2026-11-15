@@ -7,7 +7,7 @@
  * VrmRig 는 @pixiv/three-vrm 으로 불러온 VRM 모델을 쓸 때만 필요하다.
  */
 export type { Rig } from './rig.js';
-export { FACE_BODY, ARM_BODY } from './bodies.js';
+export { FACE_BODY, DOG_BODY, ARM_BODY } from './bodies.js';
 export { FacelingRig } from './faceling.js';
 export { RobotRig } from './robot.js';
 export { DogRig } from './dog.js';

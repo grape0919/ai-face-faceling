@@ -83,7 +83,8 @@ function commandPose(e: Expression, t: number): { weight: number; pose: Joints }
   let best = '';
   let weight = 0;
   for (const name of Object.keys(COMMANDS)) {
-    const v = e.weights[`move.${name}`] ?? 0;
+    // 선택지 판단의 move.left 와 부위별 수치 판단의 armLeft 는 같은 자세다
+    const v = Math.max(e.weights[`move.${name}`] ?? 0, e.channels[`arm${name[0]?.toUpperCase()}${name.slice(1)}`] ?? 0);
     if (v > weight) [best, weight] = [name, v];
   }
   return { weight, pose: best ? COMMANDS[best]!(t) : { ...REST } };
@@ -192,7 +193,17 @@ export class ArmRig implements Rig {
     const e = frame.expression;
     const dt = this.lastT === null ? 10 : clamp(e.t - this.lastT, 0, 0.25);
     this.lastT = e.t;
-    const f = bodyFeelings(e);
+    // 선택지 판단에서는 얼굴 말투의 판단을 느낌으로 묶어 읽고, 부위별 수치 판단에서는 이 팔의 채널이 직접 온다. 둘을 합친다.
+    const ch = (name: string): number => e.channels[name] ?? 0;
+    const felt = bodyFeelings(e);
+    const f = {
+      ...felt,
+      happy: Math.max(felt.happy, ch('armPerk')),
+      sad: Math.max(felt.sad, ch('armDroop')),
+      surprised: Math.max(felt.surprised, ch('armRecoil')),
+      tense: Math.max(felt.tense, ch('clawClose')),
+      tilt: Math.abs(felt.tilt) > ch('wristTilt') ? felt.tilt : ch('wristTilt'),
+    };
     const { listening, thinking, speaking } = e.turn;
     const t = e.t;
 
@@ -212,6 +223,7 @@ export class ArmRig implements Rig {
     target.roll += Math.sin(t * 6) * 0.3 * f.playful;
     // 생각 중에는 집게를 천천히 까딱인다
     target.claw += (0.5 + 0.5 * Math.sin(t * 3)) * 0.18 * thinking;
+    target.claw += 0.8 * ch('clawOpen');
     // 말할 때는 집게가 소리에 맞춰 열린다
     target.claw += 0.9 * e.mouth.jaw;
     // 숨 쉬듯 미세하게 흔들린다
@@ -241,14 +253,15 @@ export class ArmRig implements Rig {
     now.yaw += e.gesture.shake * 2.5;
     now.roll += e.gesture.shake * 1.5;
     now.claw += e.gesture.flash * 2.5;
+    now.wrist += ch('wristNod') * 0.45;
     // 눈이 없으니 윙크는 집게를 찡긋 오므리고 불빛을 깜빡이는 것으로 대신한다
-    const wink = Math.max(e.gesture.winkL, e.gesture.winkR);
+    const wink = Math.max(e.gesture.winkL, e.gesture.winkR, ch('lightBlink'));
     now.claw -= 0.5 * wink;
     now.roll += 0.25 * wink;
     this.pose(now);
 
     // 불빛: 말할 때 소리에 맞춰 밝아지고, 처지면 어두워진다. 윙크하면 꺼졌다 켜진다.
-    const glow = (0.35 + 1.6 * e.mouth.jaw + 0.4 * f.happy + 0.3 * f.surprised - 0.25 * f.sad) * (1 - 0.95 * wink);
+    const glow = (0.35 + 1.6 * e.mouth.jaw + 0.4 * f.happy + 0.3 * f.surprised - 0.25 * f.sad + 0.8 * ch('lightBright')) * (1 - 0.95 * wink);
     this.led.emissiveIntensity = clamp(glow, 0.02, 2.2);
   }
 
