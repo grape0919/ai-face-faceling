@@ -595,7 +595,8 @@ export class LiveDirector {
     if (strong.length === 0) return;
     const top = strong.reduce((a, b) => ((weights[b] ?? 0) > (weights[a] ?? 0) ? b : a));
     const home = top.endsWith('.home');
-    this.face.hold(home ? {} : { [top]: weights[top] ?? 0 }, t, home ? t + 0.1 : end + COMMAND_HOLD);
+    // 붙잡아 두는 자세는 끝까지 간 자세다. 판단 확률만큼만 가면 팔이 가다 만 것처럼 보인다.
+    this.face.hold(home ? {} : { [top]: 1 }, t, home ? t + 0.1 : end + COMMAND_HOLD);
   }
 
   /** 좌우가 있는 동작의 방향. 왼쪽이 더 자주 나온다. */
