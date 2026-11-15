@@ -7,7 +7,7 @@ import type { AnalyzerInput } from './judgment.js';
  * 부위와 선택지는 shared/regions.ts 에 있다. Jev 와 LLM 대조군이 같은 문구를 쓴다.
  * 문구나 선택지를 바꾸면 QUESTIONS_VERSION 을 올린다.
  */
-export const QUESTIONS_VERSION = 'r5';
+export const QUESTIONS_VERSION = 'r6';
 
 export type Role = 'speaking' | 'listening';
 export const ROLES: Role[] = ['speaking', 'listening'];
@@ -55,11 +55,15 @@ export const regionInstructions = (region: Region, role: Role): string => {
       'Pick the single best option. Pick the neutral option unless the line clearly calls for a reaction.';
 };
 
-/** 선택지 이름 → 설명. 듣는 구간에서는 듣는 동안 고를 수 없는 동작이 빠진다. */
-export function regionCriteria(region: Region, role: Role): Record<string, string> {
+/**
+ * 선택지 이름 → 설명. 듣는 구간에서는 듣는 동안 고를 수 없는 동작이 빠진다.
+ * parts 는 이 캐릭터가 얼굴 말고 가진 부위다. 그 몸에 맞는 설명이 따로 있는 동작은 그것을 쓴다.
+ */
+export function regionCriteria(region: Region, role: Role, parts: readonly Region[] = []): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [name, a] of Object.entries(regionSpec(region).actions)) {
-    const text = role === 'speaking' ? a.desc : a.listen;
+    const body = parts.find((p) => a.bodies?.[p]);
+    const text = role === 'speaking' ? (body ? (a.bodies?.[body] as string) : a.desc) : a.listen;
     if (text !== false) out[name] = text;
   }
   return out;

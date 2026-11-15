@@ -60,7 +60,17 @@ export class VrmRig {
       // 표준 표정의 surprised 는 입까지 크게 벌어지므로 약하게 쓴다
       this.set('surprised', avg(s, 'eyeWide') * 0.7);
       this.set('angry', avg(s, 'browDown') * 0.6);
-      this.set('blink', avg(s, 'eyeBlink'));
+      // 두 눈이 함께 감긴 만큼은 blink 로, 한쪽만 더 감긴 만큼(윙크)은 그쪽 눈에만 넣는다
+      const left = s.eyeBlinkLeft ?? 0;
+      const right = s.eyeBlinkRight ?? 0;
+      if (this.known.has('blinkLeft') && this.known.has('blinkRight')) {
+        const both = Math.min(left, right);
+        this.set('blink', both);
+        this.set('blinkLeft', left - both);
+        this.set('blinkRight', right - both);
+      } else {
+        this.set('blink', (left + right) / 2);
+      }
       this.set('aa', s.jawOpen ?? 0);
       this.set('oh', s.mouthFunnel ?? 0);
       this.set('ou', s.mouthPucker ?? 0);

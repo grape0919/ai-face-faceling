@@ -165,8 +165,10 @@ To drive your own body, read `frame.expression` the same way. `bodyFeelings(expr
 
 "Wink at me." "Move your arm to the right." These need no tool calling. The judgment model already decides what each part does from what is said, so a deliberate move is just another option: when the AI replies "Sure, *wink*!" or "Okay, all the way to the right!", the same per-clause judgment picks `eyes.wink` or `arm.right`, and the move lands the moment that clause is heard. Lines that only talk about a move ("I can't wink", "right is the hand you eat with") are left alone.
 
-- **Body-specific parts.** Parts a face does not have are marked `optional` in `regions.ts` (the robot arm's `arm`: `right`, `left`, `up`, `down`, `forward`, `wave`). Set `director.parts = ['arm']` (`ArmRig.parts`) and they are asked only while the AI speaks.
-- **Stricter than feelings.** Deliberate moves only start above 50 % probability and are full at 85 %, regardless of how strong the feeling is.
+- **Body-specific parts.** Parts a face does not have are marked `optional` in `regions.ts` (the robot arm's `arm`: `right`, `left`, `up`, `down`, `forward`, `wave`, `home`). Set `director.parts = ['arm']` (`ArmRig.parts`) and they are asked only while the AI speaks.
+- **Stricter than feelings.** Deliberate moves only start above 50 % probability and are full at 85 %, regardless of how strong the feeling is. A wink needs more than 50 % too and happens once per reply, so a follow-up line that describes the wink does not repeat it.
+- **Poses stay.** An arm pose asked for is held for five seconds after the line ends, until another arm move replaces it or the AI says it is going back (`home`). Otherwise a one-phrase reply would flick the arm out and straight back.
+- **Same action, different body.** An action can carry a description per body (`bodies` in `regions.ts`). The arm has no eyes, so its wink is asked as "the light on its wrist blinks", and the rig blinks the light and pinches the claw.
 - **The AI must know its body.** Otherwise it says "I can't move". `createSessionHandler({ characters: { arm: '…' } })` appends a body description chosen by the `character` the browser sends (`connect({ character: 'arm' })`). The demo tells the arm what it can do and to answer with a short "here it goes" line, and tells faces they have no arms.
 
 ### Other voice services

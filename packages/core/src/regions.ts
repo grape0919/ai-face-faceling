@@ -13,6 +13,11 @@ export interface ActionSpec {
   listen: string | false;
   /** 좌우 한쪽으로 치우치는 동작. 구간마다 방향을 정한다. */
   asymmetric?: boolean;
+  /**
+   * 그 부위(optional 부위의 이름, 예: 'arm')를 가진 몸에서 desc 대신 쓰는 설명.
+   * 같은 동작이 몸에 따라 다르게 나올 때 쓴다(눈이 없는 로봇팔의 윙크는 불빛 깜빡임).
+   */
+  bodies?: Record<string, string>;
 }
 
 export interface RegionSpec {
@@ -98,9 +103,12 @@ export const REGIONS = {
       // 감정이 아니라 실제로 하는 동작. 순간 동작으로 처리한다(weights.ts 의 TRANSIENT).
       wink: {
         label: '윙크',
-        desc: 'One eye closes briefly in a playful wink: the assistant is actually winking right now, e.g. it was asked to wink and does it, or teases with a wink. Not for merely talking about winking.',
+        desc: 'One eye closes briefly in a playful wink: the assistant is actually winking right now, e.g. it was asked to wink and does it, or teases with a wink. Not for merely talking about winking or describing a wink it already did.',
         asymmetric: true,
         listen: false,
+        bodies: {
+          arm: 'The light on its wrist blinks off and on like a wink: the faceless arm is actually doing its version of a wink right now, e.g. it was asked to wink and blinks its light instead ("my light goes wink!"). Not for merely describing or recalling a wink it already did.',
+        },
       },
     },
   },
@@ -289,6 +297,11 @@ export const REGIONS = {
         listen: false,
       },
       wave: { label: '흔들기', desc: 'Waving right now: hello, goodbye, cheering someone on.', listen: false },
+      home: {
+        label: '제자리',
+        desc: 'Returning to its resting position right now because it was asked to or says so: "back to the middle", "okay, relaxing", "arm down, done".',
+        listen: false,
+      },
     },
   },
 } as const satisfies Record<string, RegionSpec>;

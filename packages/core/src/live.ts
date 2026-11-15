@@ -3,8 +3,8 @@ import { BLINK_DURATION, Compositor, bell, type Expression, type MouthFeatures, 
 import { facePose } from './face.js';
 import type { AnalyzerInput, Judgment } from './judgment.js';
 import type { FacePose } from './mapping.js';
-import type { Region } from './regions.js';
-import { actionWeight, amplitude, targetWeights, type Gesture, type Weights } from './weights.js';
+import { regionSpec, type Region } from './regions.js';
+import { COMMAND_FLOOR, VARIANTS, actionWeight, amplitude, targetWeights, zeroWeights, type Gesture, type Weights } from './weights.js';
 
 /**
  * 실시간 대화용 표정 엔진.
@@ -34,10 +34,15 @@ export interface LiveFrame extends FacePose {
   debug: { turn: TurnState; weights: Weights; cue: LiveCue | null };
 }
 
+/** 일부러 하는 동작(팔 동작 등, 질문이 prompt 로 따로 있는 부위)의 세기 키 */
+const COMMAND_KEYS = VARIANTS.filter((v) => regionSpec(v.region).prompt).map((v) => v.key);
+
 /** 예약된 표정을 시각에 맞춰 얼굴로 만든다. */
 export class LiveFace {
   turn: TurnState = 'idle';
   private cues: LiveCue[] = [];
+  /** 붙잡아 둔 자세. 절이 끝나도 until 까지 남는다. 나중에 시작한 것이 앞의 것을 대신한다. */
+  private holds: { t: number; until: number; weights: Weights }[] = [];
   private gestures: Gesture[] = [];
   private readonly compositor = new Compositor();
   private lastT: number | null = null;
@@ -53,6 +58,15 @@ export class LiveFace {
     this.gestures.push(gesture);
   }
 
+  /**
+   * t 부터 until 까지 이 세기들을 붙잡아 둔다. 부탁받은 팔 자세처럼 말이 끝나도 남아야 하는 것에 쓴다.
+   * 빈 세기를 넣으면 그 시각부터 앞의 것을 푼다.
+   */
+  hold(weights: Weights, t: number, until: number): void {
+    this.holds.push({ t, until, weights });
+    this.holds.sort((a, b) => a.t - b.t);
+  }
+
   /** 지금 걸린 표정과 앞으로 예약된 표정을 모두 거둔다. kind 를 주면 그 종류만. */
   cancel(now: number, kind?: LiveCue['kind']): void {
     this.cues = this.cues.filter((cue) => {
@@ -62,6 +76,8 @@ export class LiveFace {
       return true;
     });
     this.gestures = this.gestures.filter((g) => g.t <= now);
+    // 이미 취한 자세는 두고, 아직 시작하지 않은 것만 거둔다
+    if (kind !== 'react') this.holds = this.holds.filter((h) => h.t <= now);
   }
 
   /** 지금 걸려 있는 표정을 until 까지만 유지한다. */
@@ -93,9 +109,23 @@ export class LiveFace {
     }
 
     const cue = this.activeCue(now);
+    // 붙잡아 둔 자세는 지금 걸린 표정 위에 얹는다. 새로 시작한 것이 있으면 그 앞의 것들은 버린다(제자리 명령 뒤에 옛 자세가 되살아나지 않게).
+    const started = this.holds.filter((h) => h.t <= now).length;
+    if (started > 1) this.holds.splice(0, started - 1);
+    let held: Weights | null = null;
+    const first = this.holds[0];
+    if (first && first.t <= now) {
+      if (first.until > now) held = first.weights;
+      else this.holds.shift();
+    }
+    let target = cue?.weights ?? null;
+    if (held) {
+      target = { ...(target ?? zeroWeights()) };
+      for (const [key, value] of Object.entries(held)) target[key] = Math.max(target[key] ?? 0, value);
+    }
     const expression = this.compositor.express(now, dt, {
       turn: this.turn,
-      target: cue?.weights ?? null,
+      target,
       targetSince: cue?.t ?? 0,
       gestures: this.gestures,
       mouth,
@@ -170,6 +200,10 @@ const REACT_MAX = 6;
 const REACT_SCALE = 0.85;
 /** AI 가 말을 시작한 뒤 듣는 반응이 남아 있는 시간 */
 const REACT_BRIDGE = 1.0;
+/** 부탁받은 팔 자세는 그 말이 끝난 뒤에도 이만큼 남는다(초). 다음 팔 동작이나 제자리 명령이 오면 그때 바뀐다. */
+const COMMAND_HOLD = 5;
+/** 이 세기 이상으로 또렷한 동작만 붙잡아 둔다 */
+const HOLD_MIN = 0.5;
 
 interface PendingClause {
   clause: Clause;
@@ -202,6 +236,8 @@ interface ResponseState {
   prime: Judgment | null;
   /** 이 응답에서 표정이 처음 걸렸는지 */
   shown: boolean;
+  /** 이 응답에서 윙크를 이미 했는지. 윙크한 것을 설명하는 뒷말에 또 하지 않게 한다. */
+  winked: boolean;
 }
 
 /** 대화의 사건을 받아 표정을 예약한다. */
@@ -256,6 +292,7 @@ export class LiveDirector {
       primeAsked: false,
       prime: null,
       shown: false,
+      winked: false,
     };
   }
 
@@ -527,15 +564,15 @@ export class LiveDirector {
       this.stats.missed += 1;
     } else {
       const t = Math.max(now, start);
-      this.face.schedule({
-        t,
-        until: end + HOLD_AFTER,
-        weights: targetWeights(pending.judgment, this.nextSide()),
-        kind: 'speak',
-        text: pending.clause.text,
-        judgment: pending.judgment,
-      });
+      const weights = targetWeights(pending.judgment, this.nextSide());
+      this.face.schedule({ t, until: end + HOLD_AFTER, weights, kind: 'speak', text: pending.clause.text, judgment: pending.judgment });
+      this.holdCommands(weights, t, end);
       this.addHeadGestures(pending.judgment, t + 0.15);
+      // 윙크는 부탁받은 동작이라 기준이 엄격하고, 한 응답에 한 번만 한다
+      if (!response.winked && (pending.judgment.regions.eyes?.wink ?? 0) > COMMAND_FLOOR) {
+        response.winked = true;
+        this.face.addGesture({ type: 'wink', t: t + 0.25, dur: 0.55, amp: 1, side: 'L' });
+      }
     }
     this.options.onStats?.(this.stats);
   }
@@ -546,10 +583,19 @@ export class LiveDirector {
     const shake = actionWeight(judgment.regions.head?.shake ?? 0);
     if (nod > 0.3) this.face.addGesture({ type: 'nod', t, dur: 0.5, amp: 0.09 * nod * amp });
     if (shake > 0.3) this.face.addGesture({ type: 'shake', t, dur: 0.9, amp: 0.1 * shake * amp });
-    // 윙크는 감정의 세기와 상관없이 한 번 또렷하게 한다
-    const wink = actionWeight(judgment.regions.eyes?.wink ?? 0);
-    if (wink > 0.3) this.face.addGesture({ type: 'wink', t: t + 0.1, dur: 0.55, amp: Math.min(1, 0.4 + wink), side: 'L' });
     return nod > 0.3 || shake > 0.3;
+  }
+
+  /**
+   * 이 절에서 또렷하게 고른 팔 동작을 말이 끝난 뒤에도 붙잡아 둔다. "오른쪽으로 쭉!" 한마디 뒤에 팔이 바로 돌아가지 않게 한다.
+   * 제자리(home)를 골랐으면 붙잡아 둔 자세를 푼다.
+   */
+  private holdCommands(weights: Weights, t: number, end: number): void {
+    const strong = COMMAND_KEYS.filter((key) => (weights[key] ?? 0) >= HOLD_MIN);
+    if (strong.length === 0) return;
+    const top = strong.reduce((a, b) => ((weights[b] ?? 0) > (weights[a] ?? 0) ? b : a));
+    const home = top.endsWith('.home');
+    this.face.hold(home ? {} : { [top]: weights[top] ?? 0 }, t, home ? t + 0.1 : end + COMMAND_HOLD);
   }
 
   /** 좌우가 있는 동작의 방향. 왼쪽이 더 자주 나온다. */

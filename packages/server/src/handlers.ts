@@ -114,7 +114,9 @@ export function createSessionHandler(options: SessionHandlerOptions = {}): Fetch
     const body = await readJson(request);
     const asked = text(body.voice, 40);
     const voice = voices.includes(asked) ? asked : fallbackVoice;
-    const character = options.characters?.[text(body.character, 40)];
+    // 목록에 직접 적힌 이름만 받는다. 'constructor' 같은 이름이 객체의 기본 속성을 꺼내 오지 않게 한다.
+    const name = text(body.character, 40);
+    const character = options.characters && Object.prototype.hasOwnProperty.call(options.characters, name) ? options.characters[name] : undefined;
     const instructions = [options.instructions ?? env('OPENAI_REALTIME_INSTRUCTIONS'), character].filter(Boolean).join('\n\n');
     const transcribeModel = options.transcribeModel || env('OPENAI_TRANSCRIBE_MODEL') || DEFAULT_TRANSCRIBE_MODEL;
 

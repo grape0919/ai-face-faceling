@@ -50,22 +50,22 @@ export function createJevAnalyzer(options: JevAnalyzerOptions = {}): Analyzer {
 
   // 말하는 구간과 듣는 구간은 질문 세트가 따로다. 듣는 구간에서 빠진 선택지는 아래에서 확률 0 으로 채운다.
   // 팔처럼 그 몸에만 있는 부위는 AI 가 말하는 구간에서, 요청에 parts 로 들어온 것만 묻는다.
-  const question = (region: Region, role: Role) => ({
-    type: 'choice',
-    instructions: regionInstructions(region, role),
-    criteria: regionCriteria(region, role),
-  });
-  const base: Record<Role, Record<string, unknown>> = { speaking: {}, listening: {} };
-  for (const role of ['speaking', 'listening'] as const) {
-    base[role].intensity = { type: 'score', ...intensityQuestion(role) };
-    for (const region of FACE_REGIONS) base[role][region] = question(region, role);
-  }
-  const extras = Object.fromEntries(OPTIONAL_REGIONS.map((r) => [r, question(r, 'speaking')]));
+  // 몸에 따라 선택지 설명이 달라지는 동작도 있어(로봇팔의 윙크), 질문 세트는 역할과 몸의 조합마다 한 번 만들어 둔다.
+  const sets = new Map<string, { questions: Record<string, unknown>; asked: Region[] }>();
   const questionsFor = (role: Role, parts: readonly Region[] = []): { questions: Record<string, unknown>; asked: Region[] } => {
-    const asked = role === 'speaking' ? OPTIONAL_REGIONS.filter((r) => parts.includes(r)) : [];
-    const questions = { ...base[role] };
-    for (const r of asked) questions[r] = extras[r];
-    return { questions, asked: [...FACE_REGIONS, ...asked] };
+    const extra = role === 'speaking' ? OPTIONAL_REGIONS.filter((r) => parts.includes(r)) : [];
+    const key = `${role}:${extra.join(',')}`;
+    let set = sets.get(key);
+    if (!set) {
+      const asked = [...FACE_REGIONS, ...extra];
+      const questions: Record<string, unknown> = { intensity: { type: 'score', ...intensityQuestion(role) } };
+      for (const region of asked) {
+        questions[region] = { type: 'choice', instructions: regionInstructions(region, role), criteria: regionCriteria(region, role, extra) };
+      }
+      set = { questions, asked };
+      sets.set(key, set);
+    }
+    return set;
   };
 
   return {

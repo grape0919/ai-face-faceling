@@ -735,7 +735,7 @@ function showDebug(frame: LiveFrame): void {
  * 편안·정면처럼 아무것도 안 하는 동작은 빼고, "올림"처럼 부위 없이는 뜻이 모호한 것은 부위 이름을 붙인다.
  */
 const RESTING = new Set(['편안', '정면', '그대로']);
-const NEEDS_REGION = new Set(['눈썹', '눈', '시선']);
+const NEEDS_REGION = new Set(['눈썹', '눈', '시선', '팔']);
 function strongestAction(frame: LiveFrame): string {
   let best = { label: '', w: 0.2 };
   for (const v of VARIANTS) {
