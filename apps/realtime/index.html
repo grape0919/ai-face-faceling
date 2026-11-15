@@ -134,6 +134,7 @@
       }
       .face img, .face canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; }
       .face .glyph { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--mono); font-weight: 500; color: var(--muted); font-size: 30cqw; }
+      @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes ring { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(1.25); opacity: 0; } }
 
       /* ═════════ 온보딩 ═════════ */
@@ -280,6 +281,32 @@
       body[data-mode='waiting'] #stage::before,
       body[data-mode='listening'] #stage::before { animation: ring 2.2s ease-out infinite; }
       body[data-mode='speaking'] #stage .surface::after { box-shadow: inset 0 0 0 2px var(--accent); }
+
+      /* 연결하거나 3D 모델을 불러오는 동안: 얼굴을 흐리게 하고 가운데에 돌아가는 고리를 보여 준다 */
+      #stage .surface { transition: opacity 0.2s; }
+      #busy { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+      #busy::before {
+        content: '';
+        width: 14%;
+        aspect-ratio: 1;
+        border-radius: 50%;
+        border: 3px solid var(--border-hover);
+        border-top-color: var(--accent);
+        animation: spin 0.8s linear infinite;
+      }
+      body[data-busy='on'] #busy { opacity: 1; }
+      body[data-busy='on'] #stage .surface { opacity: 0.35; }
+
+      /* 화면 언어 전환 */
+      #onboarding > .lang-toggle { position: fixed; top: 16px; right: 16px; height: 32px; z-index: 2; }
+      .lang-toggle { font-size: 13px; }
+
+      /* 정적 페이지(녹화 재생): 서버가 있어야 되는 것은 감춘다 */
+      body[data-static='on'] .voices,
+      body[data-static='on'] .compose,
+      body[data-static='on'] #start-text-2,
+      body[data-static='on'] #sim-text,
+      body[data-static='on'] #sim-say { display: none; }
 
       /* 자막 */
       .caption { width: 100%; max-width: 560px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
@@ -437,13 +464,15 @@
       }
       @media (prefers-reduced-motion: reduce) {
         #stage::before { animation: none !important; opacity: 0.6 !important; }
+        #busy::before { animation-duration: 2.4s; }
         * { transition: none !important; }
       }
     </style>
   </head>
-  <body data-screen="onboarding" data-step="1" data-conn="off" data-mode="off" data-log="on" data-dev="off" data-change="off">
+  <body data-screen="onboarding" data-step="1" data-conn="off" data-mode="off" data-log="on" data-dev="off" data-change="off" data-busy="off">
     <!-- ═════════ 온보딩 ═════════ -->
     <div id="onboarding">
+      <button class="btn-pill quiet lang-toggle" lang="en">English</button>
       <div class="progress mono" aria-hidden="true"><i></i><i></i><i></i><span id="step-label">1 / 3</span></div>
 
       <section class="step active" id="step-1" aria-labelledby="step-1-title">
@@ -522,6 +551,7 @@
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="5" /><path d="M9.5 10v1M14.5 10v1M9.5 15c1.4 1 3.6 1 5 0" /></svg>
             <span class="label">캐릭터 변경</span>
           </button>
+          <button class="btn-pill quiet lang-toggle" lang="en">English</button>
           <a class="btn-pill quiet" id="repo" href="https://github.com/grape0919/ai-face-faceling" target="_blank" rel="noopener" title="GitHub 저장소 (오픈소스)">
             <svg class="icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg>
             <span class="label">GitHub</span>
@@ -535,6 +565,7 @@
 
           <div class="face" id="stage">
             <div class="surface"><canvas id="canvas" width="720" height="720" aria-label="AI 의 얼굴"></canvas></div>
+            <div id="busy" aria-hidden="true"></div>
           </div>
 
           <div class="caption" aria-live="polite">
@@ -588,37 +619,37 @@
         <button class="btn-pill" id="dev-close" style="height: 32px">닫기</button>
       </div>
       <div class="card">
-        <h2>지금 얼굴 · 판단 모델의 선택 → 걸린 세기</h2>
+        <h2 id="dev-h-face">지금 얼굴 · 판단 모델의 선택 → 걸린 세기</h2>
         <div id="dims"></div>
         <p id="judged"></p>
       </div>
       <div class="card">
-        <h2>시점</h2>
+        <h2 id="dev-h-timing">시점</h2>
         <div id="stats"></div>
       </div>
       <div class="card">
-        <h2>연결</h2>
+        <h2 id="dev-h-conn">연결</h2>
         <div class="row">
           <button id="speak-first" class="btn-pill live-only">AI 가 먼저 말하기</button>
           <button id="interrupt" class="btn-pill live-only">말 끊기</button>
         </div>
         <div class="row" style="margin-top: 8px">
-          <label>목소리 <select id="voice"></select></label>
-          <label><input id="live-reactions" type="checkbox" checked /> 말하는 도중에도 반응</label>
-          <label title="선택지에서 동작을 고르는 대신, 부위(근육·관절)마다 세기와 유지 시간을 직접 판단합니다. 질문 수가 크게 늘어납니다."><input id="channel-mode" type="checkbox" /> 부위별 수치로 판단 (실험)</label>
-          <label><input id="greet" type="checkbox" checked /> 연결하면 AI 가 먼저 인사</label>
+          <label><span id="l-voice">목소리 </span><select id="voice"></select></label>
+          <label><input id="live-reactions" type="checkbox" checked /><span id="l-live-reactions"> 말하는 도중에도 반응</span></label>
+          <label title="선택지에서 동작을 고르는 대신, 부위(근육·관절)마다 세기와 유지 시간을 직접 판단합니다. 질문 수가 크게 늘어납니다."><input id="channel-mode" type="checkbox" /><span id="l-channel-mode"> 부위별 수치로 판단 (실험)</span></label>
+          <label><input id="greet" type="checkbox" checked /><span id="l-greet"> 연결하면 AI 가 먼저 인사</span></label>
         </div>
         <p id="status">불러오는 중</p>
       </div>
       <div class="card">
-        <h2>3D 얼굴 · VRM</h2>
+        <h2 id="dev-h-vrm">3D 얼굴 · VRM</h2>
         <p id="model-info">"3D 모델"을 고르면 예제 모델을 불러옵니다. 내 VRM 파일을 넣을 수도 있습니다.</p>
         <div class="row" style="margin-top: 10px">
-          <label class="btn-pill">내 VRM 불러오기<input id="vrm-file" type="file" accept=".vrm" hidden /></label>
+          <label class="btn-pill"><span id="l-vrm-file">내 VRM 불러오기</span><input id="vrm-file" type="file" accept=".vrm" hidden /></label>
         </div>
       </div>
       <div class="card">
-        <h2>문장 하나로 시험 · 연결 없이, 소리 없음</h2>
+        <h2 id="dev-h-sim">문장 하나로 시험 · 연결 없이, 소리 없음</h2>
         <textarea id="sim-text" rows="2" aria-label="AI 가 말할 문장">정말요? 와, 축하드려요! 그동안 고생하신 보람이 있네요.</textarea>
         <div class="row">
           <button id="sim-say" class="btn-pill">이 문장을 AI 가 말하기</button>

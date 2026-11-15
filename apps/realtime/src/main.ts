@@ -9,7 +9,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VARIANTS } from '@faceling/core/weights';
 import * as THREE from 'three';
 import { RealtimeConnection } from '@faceling/openai-realtime';
-import { DEMO_LINES, Simulation } from './simulate';
+import { initialLang, lang, setLang, t, type Lang } from './i18n';
+import { findRecorded, type Recordings } from './recorded';
+import { Simulation, demoLines, type SimLine } from './simulate';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -32,16 +34,20 @@ const store = {
   },
 };
 
+// 화면 언어. 다른 글을 만들기 전에 먼저 정한다.
+setLang(initialLang(params.get('lang'), store.get('lang')));
+
+/**
+ * 정적 페이지 방식: 서버와 키 없이, 녹화해 둔 판단으로 예시 대화만 재생한다.
+ * GitHub Pages 용 빌드(vite build --mode pages)이거나 주소에 ?static 이 붙었을 때다.
+ */
+const STATIC_PAGE = import.meta.env.MODE === 'pages' || params.has('static');
+
 // ── 얼굴 종류 ─────────────────────────────────────────────
 const AVATARS = ['faceling', 'robot', 'dog', 'arm', 'vrm'] as const;
 type Avatar = (typeof AVATARS)[number];
-const AVATAR_INFO: Record<Avatar, { name: string; desc: string }> = {
-  faceling: { name: '페이스링', desc: '로고와 같은 얼굴. 눈과 입만으로 표정을 지어요' },
-  robot: { name: '로봇', desc: '화면에 눈과 입이 그려지는 작은 로봇' },
-  dog: { name: '강아지', desc: '동그란 눈과 큰 귀를 가진 강아지' },
-  arm: { name: '로봇팔', desc: '얼굴 없는 작업대 로봇팔. 몸짓으로 감정을 보여 줘요' },
-  vrm: { name: '3D 모델', desc: 'VRM 3D 모델. 처음 고르면 예제 모델을 내려받아요' },
-};
+const avatarName = (avatar: Avatar): string => t(`avatar.${avatar}`);
+const avatarDesc = (avatar: Avatar): string => t(`avatar.${avatar}.desc`);
 const isAvatar = (value: string | null): value is Avatar => AVATARS.includes(value as Avatar);
 /** 그 캐릭터의 몸 명세. 리그가 선언한 것을 그대로 쓴다(3D 모델은 불러오기 전에도 얼굴 몸이다). */
 const bodyOf = (avatar: Avatar): BodySpec => rigOf(avatar)?.body ?? FACE_BODY;
@@ -120,9 +126,10 @@ scene.add(lookTarget);
 let vrm: VRM | null = null;
 let vrmRig: VrmRig | null = null;
 let vrmLoading: Promise<void> | null = null;
+let vrmLabel = '';
 
 async function loadVrm(source: string, label: string): Promise<void> {
-  setStatus(`3D 모델을 불러오는 중입니다 (${label})`);
+  setStatus(t('vrm.loading', { label }));
   state.loadingVrm = true;
   refresh();
   try {
@@ -130,7 +137,7 @@ async function loadVrm(source: string, label: string): Promise<void> {
     loader.register((parser) => new VRMLoaderPlugin(parser));
     const gltf = await loader.loadAsync(source);
     const next = gltf.userData.vrm as VRM | undefined;
-    if (!next) throw new Error('VRM 모델이 아닙니다');
+    if (!next) throw new Error(t('vrm.notVrm'));
     VRMUtils.rotateVRM0(next);
     if (vrm) {
       scene.remove(vrm.scene);
@@ -142,8 +149,9 @@ async function loadVrm(source: string, label: string): Promise<void> {
     const head = new THREE.Vector3();
     vrm.humanoid.getNormalizedBoneNode('head')?.getWorldPosition(head);
     vrmRig = new VrmRig(vrm, lookTarget, { x: head.x, y: head.y + 0.04, z: head.z + 1.15 });
+    vrmLabel = label;
     showModelInfo(label);
-    setStatus(`3D 모델을 불러왔습니다 (${label})`);
+    setStatus(t('vrm.loaded', { label }));
   } finally {
     state.loadingVrm = false;
     refresh();
@@ -158,8 +166,8 @@ function showModelInfo(label: string): void {
   const author = meta.authors?.join(', ') ?? meta.author ?? '';
   const ability =
     vrmRig.mode === 'arkit'
-      ? `ARKit 표정 ${vrmRig.supported.length}개를 가진 모델입니다. 표정이 모두 반영됩니다.`
-      : '표준 표정(기쁨, 슬픔, 놀람 등)만 가진 모델이라 표정이 단순하게 보입니다. ARKit 표정을 가진 VRM 을 넣으면 로봇·강아지처럼 세밀하게 움직입니다.';
+      ? t('vrm.arkit', { n: vrmRig.supported.length })
+      : t('vrm.preset');
   $('model-info').textContent = `${name}${author ? ` (${author})` : ''}. ${ability}`;
 }
 
@@ -194,11 +202,11 @@ function showAvatar(next: Avatar): void {
   // 판단에 이 몸이 할 수 있는 움직임을 함께 묻는다. 무엇을 할 수 있는지는 리그가 선언한다.
   director.body = bodyOf(next);
   if (next === 'vrm' && !vrm && !vrmLoading) {
-    vrmLoading = loadVrm(SAMPLE_VRM, 'three-vrm 예제 모델')
+    vrmLoading = loadVrm(SAMPLE_VRM, t('vrm.sample'))
       .then(() => {
         if (state.avatar === 'vrm') frameAvatar('vrm');
       })
-      .catch((err: unknown) => setNotice(`3D 모델을 불러오지 못했어요: ${err instanceof Error ? err.message : String(err)}`))
+      .catch((err: unknown) => setNotice(t('vrm.failed', { message: err instanceof Error ? err.message : String(err) })))
       .finally(() => (vrmLoading = null));
   }
   frameAvatar(next);
@@ -235,8 +243,18 @@ function fillThumb(box: HTMLElement, which: Avatar): void {
 // ── 표정 엔진 ─────────────────────────────────────────────
 const clock = (): number => performance.now() / 1000;
 
-/** 절 하나의 판단을 서버를 거쳐 Jev 에 묻는다 */
+/** 정적 페이지가 재생할 녹화된 판단. 처음 쓸 때 한 번 받는다. */
+let recordings: Promise<Recordings> | null = null;
+/** 녹화 당시 Jev 가 답하는 데 걸린 시간과 비슷하게 기다린다. 실제보다 빨라 보이지 않게 한다. */
+const RECORDED_DELAY_MS = 250;
+
+/** 절 하나의 판단을 서버를 거쳐 Jev 에 묻는다. 정적 페이지에서는 녹화에서 찾는다. */
 async function judge(input: AnalyzerInput): Promise<Judgment> {
+  if (STATIC_PAGE) {
+    recordings ??= fetch('./recordings.json').then((res) => res.json() as Promise<Recordings>);
+    const [all] = await Promise.all([recordings, new Promise((r) => setTimeout(r, RECORDED_DELAY_MS))]);
+    return findRecorded(all, input);
+  }
   const res = await fetch('/api/judge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -245,7 +263,7 @@ async function judge(input: AnalyzerInput): Promise<Judgment> {
   });
   const body = (await res.json()) as { judgment?: Judgment; error?: string };
   if (!res.ok || !body.judgment) {
-    setNotice(body.error ?? '표정 판단 요청이 실패했어요');
+    setNotice(body.error ?? t('notice.judgeFailed'));
     throw new Error(body.error ?? '판단 요청 실패');
   }
   return body.judgment;
@@ -298,7 +316,7 @@ function renderMeta(message: Message): void {
   let top = '';
   let most = 0;
   for (const [label, n] of message.actions) if (n > most) [top, most] = [label, n];
-  message.meta.textContent = `${AVATAR_INFO[state.avatar].name}${top ? ` · ${top}` : ''}`;
+  message.meta.textContent = `${avatarName(state.avatar)}${top ? ` · ${top}` : ''}`;
 }
 
 /**
@@ -328,23 +346,26 @@ function onCaption(who: 'user' | 'assistant', text: string, final: boolean): voi
 
 function clearConversation(): void {
   messages.length = 0;
-  $('messages').innerHTML = '<p class="empty">아직 나눈 말이 없어요.</p>';
+  $('messages').innerHTML = `<p class="empty">${t('log.empty')}</p>`;
   caption.who = '';
   caption.text = '';
 }
 
 // ── 연결 ──────────────────────────────────────────────────
-const connection = new RealtimeConnection(director, {
+/** 연결 옵션. 언어가 바뀌면 임시 키를 받는 주소와 인사 지시를 바꾼다(다음 연결부터 적용된다). */
+const connectionOptions: NonNullable<ConstructorParameters<typeof RealtimeConnection>[2]> = {};
+const connectionCallbacks: ConstructorParameters<typeof RealtimeConnection>[1] = {
   onStatus: setStatus,
   onCaption,
   onError: setNotice,
   onDropped: () => {
     state.conn = 'off';
     state.failed = true;
-    setNotice('연결이 끊겼어요.');
+    setNotice(t('notice.dropped'));
     refresh();
   },
-});
+};
+const connection = new RealtimeConnection(director, connectionCallbacks, connectionOptions);
 const simulation = new Simulation(director, onCaption);
 let demo: Promise<void> = Promise.resolve();
 
@@ -366,7 +387,7 @@ async function fakeMic(url: string): Promise<MediaStream> {
 
 async function startConversation(withoutMic: boolean): Promise<void> {
   if (!state.config.openai) {
-    runDemo(DEMO_LINES);
+    runDemo();
     return;
   }
   if (state.conn !== 'off') return;
@@ -392,7 +413,7 @@ async function startConversation(withoutMic: boolean): Promise<void> {
     state.conn = 'on';
     state.connectedAt = Date.now();
     if (!withoutMic && connection.listenOnly) {
-      setNotice('마이크를 쓸 수 없어 글로만 대화해요. 브라우저 주소창의 사이트 설정에서 마이크를 허용하면 다음 연결부터 쓸 수 있어요.');
+      setNotice(t('notice.noMic'));
       void checkMicPermission();
     }
     // 글로 대화할 때는 입력창이 보여야 한다
@@ -411,18 +432,19 @@ function endConversation(): void {
   state.conn = 'off';
   state.ended = true;
   state.failed = false;
-  setStatus('연결을 끊었습니다');
+  setStatus(t('status.ended'));
   refresh();
 }
 
-function runDemo(lines: typeof DEMO_LINES): void {
+/** 예시 대화를 재생한다. 대사를 주지 않으면 지금 언어와 몸에 맞는 예시 대화다. */
+function runDemo(lines: SimLine[] = demoLines(lang(), bodyOf(state.avatar).name)): void {
   if (simulation.running || state.conn !== 'off') return;
   setNotice('');
   clearConversation();
   state.ended = false;
-  setStatus('예시 대화를 재생하는 중입니다. 소리는 나지 않습니다.');
+  setStatus(t('status.demoRunning'));
   demo = simulation.run(lines).then(() => {
-    setStatus('예시 대화가 끝났습니다.');
+    setStatus(t('status.demoDone'));
     refresh();
   });
   refresh();
@@ -436,18 +458,6 @@ function sendText(text: string): void {
 
 // ── 화면 그리기 ───────────────────────────────────────────
 type Mode = 'off' | 'connecting' | 'waiting' | 'muted' | 'text' | 'demo' | 'error' | Exclude<TurnState, 'idle'>;
-const MODE_TEXT: Record<Mode, string> = {
-  off: '연결 전',
-  connecting: '연결하는 중…',
-  waiting: '듣고 있어요',
-  listening: '듣고 있어요',
-  thinking: '생각 중…',
-  speaking: '말하는 중',
-  muted: '마이크가 꺼져 있어요',
-  text: '메시지를 기다려요',
-  demo: '예시 대화',
-  error: '연결하지 못했어요',
-};
 
 function currentMode(): Mode {
   const turn = face.turn;
@@ -462,21 +472,22 @@ function currentMode(): Mode {
 }
 
 function captionHint(mode: Mode): string {
-  if (state.loadingVrm && state.avatar === 'vrm') return '3D 모델을 불러오는 중이에요…';
+  if (state.loadingVrm && state.avatar === 'vrm') return t('hint.vrm');
   switch (mode) {
     case 'waiting':
-      return '“오늘 하루 어땠어?”처럼 편하게 말해 보세요';
+      return t('hint.waiting');
     case 'muted':
-      return '마이크를 켜거나 메시지를 입력하세요';
+      return t('hint.muted');
     case 'text':
-      return '메시지를 입력해 말을 걸어 보세요';
+      return t('hint.text');
     case 'connecting':
-      return '연결하고 있어요. 마이크 허용 창이 뜨면 허용해 주세요.';
+      return t('hint.connecting');
     case 'error':
-      return '연결 상태를 확인하고 다시 시도해 주세요';
+      return t('hint.error');
     case 'off':
-      if (!state.config.openai) return 'OPENAI_API_KEY 가 없어 음성 대화는 할 수 없어요. 예시 대화로 표정이 움직이는 모습을 볼 수 있어요.';
-      return state.ended ? '대화를 마쳤어요. 언제든 다시 시작할 수 있어요.' : '대화를 시작하면 얼굴이 듣고, 생각하고, 표정으로 반응해요';
+      if (STATIC_PAGE) return t('hint.static');
+      if (!state.config.openai) return t('hint.noOpenai');
+      return state.ended ? t('hint.ended') : t('hint.off');
     default:
       return '';
   }
@@ -489,7 +500,9 @@ function refresh(): void {
   const live = state.conn === 'on';
   const hint = captionHint(mode);
   const showCaption = caption.text !== '' && (live || simulation.running);
-  const signature = [mode, state.conn, state.screen, state.step, state.avatar, state.voice, showCaption ? caption.text : hint, connection.micEnabled, connection.listenOnly, simulation.running, Boolean(state.changing)].join('|');
+  // 화면이 멈춘 것처럼 보이는 구간: 연결하는 중, 고른 3D 모델을 불러오는 중
+  const busy = state.conn === 'connecting' || (state.loadingVrm && state.avatar === 'vrm');
+  const signature = [mode, state.conn, state.screen, state.step, state.avatar, state.voice, showCaption ? caption.text : hint, connection.micEnabled, connection.listenOnly, simulation.running, Boolean(state.changing), busy, lang()].join('|');
   if (signature === lastRender) return;
   lastRender = signature;
 
@@ -499,9 +512,10 @@ function refresh(): void {
   body.dataset.conn = state.conn;
   body.dataset.mode = mode;
   body.dataset.change = state.changing ? 'on' : 'off';
+  body.dataset.busy = busy ? 'on' : 'off';
 
   // 상태 칩, 자막
-  $('status-text').textContent = MODE_TEXT[mode];
+  $('status-text').textContent = t(`mode.${mode}`);
   const cap = $('caption');
   cap.textContent = showCaption ? caption.text : hint;
   cap.classList.toggle('hint', !showCaption);
@@ -512,33 +526,33 @@ function refresh(): void {
   start.disabled = state.conn === 'connecting';
   $('start-label').textContent =
     state.conn === 'connecting'
-      ? '연결하는 중…'
+      ? t('start.connecting')
       : !state.config.openai
         ? simulation.running
-          ? '예시 대화 멈춤'
-          : '예시 대화 보기'
+          ? t('start.demoStop')
+          : t('start.demo')
         : state.failed
-          ? '다시 시도'
-          : '대화 시작';
+          ? t('start.retry')
+          : t('start.go');
   $('start-text-2').hidden = !state.config.openai || state.conn === 'connecting';
 
   // 마이크
   const mic = $<HTMLButtonElement>('mic');
   mic.disabled = connection.listenOnly;
   mic.setAttribute('aria-pressed', String(!connection.listenOnly && connection.micEnabled));
-  const micLabel = connection.listenOnly ? '마이크 없이 연결했어요. 종료한 뒤 다시 시작하면 켤 수 있어요.' : connection.micEnabled ? '마이크 끄기' : '마이크 켜기';
+  const micLabel = connection.listenOnly ? t('mic.none') : connection.micEnabled ? t('mic.off') : t('mic.on');
   mic.setAttribute('aria-label', micLabel);
   mic.title = micLabel;
 
   // 글 입력
   const input = $<HTMLInputElement>('say-text');
   input.disabled = !live;
-  input.placeholder = live ? '메시지 입력' : '대화를 시작하면 글로도 말할 수 있어요';
+  input.placeholder = live ? t('say.placeholder') : t('say.disabled');
   $<HTMLButtonElement>('say').disabled = !live;
   for (const b of $('suggestions').querySelectorAll('button')) b.disabled = !live;
 
   // 머리말
-  $('avatar-name').textContent = AVATAR_INFO[state.avatar].name;
+  $('avatar-name').textContent = avatarName(state.avatar);
   fillThumb($('header-face'), state.avatar);
   updateTimer();
 
@@ -546,9 +560,9 @@ function refresh(): void {
 }
 
 function updateTimer(): void {
-  let text = '연결 전';
-  if (state.conn === 'connecting') text = '연결하는 중';
-  if (simulation.running) text = '● 예시 대화';
+  let text = t('timer.off');
+  if (state.conn === 'connecting') text = t('timer.connecting');
+  if (simulation.running) text = t('timer.demo');
   if (state.conn === 'on') {
     const s = Math.floor((Date.now() - state.connectedAt) / 1000);
     text = `● LIVE · ${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -566,18 +580,16 @@ function renderOnboarding(): void {
   });
   $('step-label').textContent = `${state.step} / 3`;
 
-  const name = AVATAR_INFO[state.avatar].name;
-  $('step-2-next').textContent = `${name}${ro(name)} ${state.changing ? '바꿀게요' : '할게요'}`;
-  $('step-2-back').textContent = state.changing ? '취소' : '이전';
+  const name = avatarName(state.avatar);
+  $('step-2-next').textContent = t(state.changing ? 'onb.switch' : 'onb.pick', { name, ro: ro(name) });
+  $('step-2-back').textContent = state.changing ? t('onb.cancel') : t('onb.back');
 
   const { openai, jev } = state.config;
-  $('step-3-title').textContent = openai ? '목소리로 대화하려면' : '음성 대화 키가 없어요';
-  $('step-3-desc').textContent = openai
-    ? '마이크만 있으면 돼요. 음성과 대화 내용은 OpenAI(음성 대화)와 Jev(표정 판단)로 전송돼요. 이 예제 서버는 표정 판단 기록을 내 PC 의 logs 폴더에 남겨요.'
-    : 'OPENAI_API_KEY 를 루트 .env 에 넣고 서버를 다시 시작하면 목소리로 대화할 수 있어요. 지금은 예시 대화로 표정이 움직이는 모습을 볼 수 있어요. 예시 대화의 글은 표정 판단을 위해 Jev 로 전송돼요.';
+  $('step-3-title').textContent = STATIC_PAGE ? t('onb.staticTitle') : openai ? t('onb.voiceTitle') : t('onb.noKeyTitle');
+  $('step-3-desc').textContent = STATIC_PAGE ? t('onb.staticDesc') : openai ? t('onb.voiceDesc') : t('onb.noKeyDesc');
   $('perm-mic').hidden = !openai;
   $('perm-jev').hidden = jev;
-  $('start-voice').textContent = openai ? '마이크 허용하고 대화 시작' : '예시 대화 보기';
+  $('start-voice').textContent = openai ? t('onb.startVoice') : t('start.demo');
   $('start-text').hidden = !openai;
 }
 
@@ -594,7 +606,7 @@ function buildAvatarCards(): void {
   $('avatar-cards').innerHTML = AVATARS.map(
     (a) => `<button class="card-pick" role="radio" data-avatar="${a}">
       <div class="face"><div class="surface"></div></div>
-      <div><b>${AVATAR_INFO[a].name}</b><span>${AVATAR_INFO[a].desc}</span></div>
+      <div><b>${avatarName(a)}</b><span>${avatarDesc(a)}</span></div>
     </button>`,
   ).join('');
   for (const card of document.querySelectorAll<HTMLElement>('#avatar-cards [data-avatar]')) {
@@ -637,9 +649,9 @@ async function checkMicPermission(): Promise<void> {
     const dot = $('mic-dot');
     dot.classList.toggle('on', permission === 'granted');
     dot.classList.toggle('bad', permission === 'denied');
-    $('mic-state').textContent = { granted: '허용됨', denied: '거부됨', prompt: '대기' }[permission];
+    $('mic-state').textContent = t(`perm.${permission}`);
     $('mic-desc').textContent =
-      permission === 'denied' ? '막혀 있어요 · 주소창의 사이트 설정에서 허용해 주세요' : '필수 · 말하면 바로 반응해요';
+      permission === 'denied' ? t('perm.blocked') : t('perm.needed');
   };
   try {
     const status = await navigator.permissions.query({ name: 'microphone' as PermissionName });
@@ -675,6 +687,8 @@ function closeChange(apply: boolean): void {
     return;
   }
   store.set('avatar', state.avatar);
+  // 예시 대화는 몸마다 대사가 다르다. 재생 중에 몸이 바뀌었으면 새 몸의 대화로 다시 튼다.
+  if (simulation.running && bodyOf(state.avatar).name !== bodyOf(before.avatar).name) restartDemo();
   // 목소리와 AI 가 아는 자기 몸은 연결한 뒤에는 바꿀 수 없어서 다시 연결한다
   if (state.conn === 'on' && (state.voice !== before.voice || bodyOf(state.avatar).name !== bodyOf(before.avatar).name)) {
     const withoutMic = state.withoutMic;
@@ -701,25 +715,26 @@ const ms = (seconds: number | null): string => (seconds === null ? '-' : `${Math
 
 function showStats(stats: DirectorStats): void {
   const lead = stats.meanLead;
-  const leadText = lead === null ? '-' : lead >= 0 ? `${ms(lead)} 먼저` : `${ms(-lead)} 늦게`;
+  const leadText = lead === null ? '-' : lead >= 0 ? t('stats.early', { ms: ms(lead) }) : t('stats.late', { ms: ms(-lead) });
   $('stats').innerHTML =
-    `<span>판단한 절</span><b>${stats.judged}개</b>` +
-    `<span>놓친 절</span><b>${stats.missed}개</b>` +
-    `<span>Jev 응답 시간(평균)</span><b>${ms(stats.meanLatency)}</b>` +
-    `<span>판단이 소리보다(평균)</span><b>${leadText}</b>` +
-    `<span>응답 첫 절의 표정 지연(평균)</span><b>${ms(stats.meanFirstDelay)}</b>` +
-    `<span>말 빠르기 추정</span><b>글자당 ${ms(stats.secondsPerChar)}</b>`;
+    `<span>${t('stats.judged')}</span><b>${t('stats.count', { n: stats.judged })}</b>` +
+    `<span>${t('stats.missed')}</span><b>${t('stats.count', { n: stats.missed })}</b>` +
+    `<span>${t('stats.latency')}</span><b>${ms(stats.meanLatency)}</b>` +
+    `<span>${t('stats.lead')}</span><b>${leadText}</b>` +
+    `<span>${t('stats.firstDelay')}</span><b>${ms(stats.meanFirstDelay)}</b>` +
+    `<span>${t('stats.rate')}</span><b>${t('stats.perChar', { ms: ms(stats.secondsPerChar) })}</b>`;
 }
 
 function buildRegionRows(): void {
   $('dims').innerHTML = REGION_KEYS.map(
-    (r) => `<span>${regionSpec(r).label}</span><div class="bar"><i data-dim="${r}"></i></div><span data-val="${r}">-</span>`,
+    (r) => `<span>${regionLabel(r)}</span><div class="bar"><i data-dim="${r}"></i></div><span data-val="${r}">-</span>`,
   ).join('');
 }
 
-const actionLabel = (region: Region, action: string): string => regionSpec(region).actions[action]?.label ?? action;
-
-const DURATION_LABEL = { instant: '순간', brief: '잠깐', line: '말하는 동안', stay: '머무름', until_told: '시킬 때까지' } as const;
+/** 부위와 동작의 이름. 한국어는 엔진이 가진 이름을, 영어는 엔진 안에서 쓰는 영어 이름을 그대로 보여 준다. */
+const regionLabel = (region: Region): string => (lang() === 'en' ? region : regionSpec(region).label);
+const actionLabel = (region: Region, action: string): string =>
+  lang() === 'en' ? action.replace(/_/g, ' ') : (regionSpec(region).actions[action]?.label ?? action);
 
 function showDebug(frame: LiveFrame): void {
   if (document.body.dataset.dev !== 'on') return;
@@ -741,18 +756,18 @@ function showDebug(frame: LiveFrame): void {
     const top = Object.entries(judgedChannels)
       .sort((a, b) => b[1].amount - a[1].amount)
       .slice(0, 10)
-      .map(([name, v]) => `${name} ${v.amount.toFixed(2)} ${DURATION_LABEL[v.duration]}`);
+      .map(([name, v]) => `${name} ${v.amount.toFixed(2)} ${t(`dur.${v.duration}`)}`);
     $('judged').textContent =
-      `${cue.kind === 'react' ? '듣는 반응' : '말하는 표정'} · "${cue.text}" · 부위별 수치 · ` +
-      (top.join(', ') || '움직임 없음') +
-      (cue.judgment.reset ? ' · 쉬는 자세로' : '');
+      `${cue.kind === 'react' ? t('debug.react') : t('debug.speak')} · "${cue.text}" · ${t('debug.channels')} · ` +
+      (top.join(', ') || t('debug.still')) +
+      (cue.judgment.reset ? ` · ${t('debug.reset')}` : '');
     return;
   }
   $('judged').textContent = cue
-    ? `${cue.kind === 'react' ? '듣는 반응' : '말하는 표정'} · "${cue.text}" · ` +
+    ? `${cue.kind === 'react' ? t('debug.react') : t('debug.speak')} · "${cue.text}" · ` +
       REGION_KEYS.map((r) => {
         const top = topAction(cue.judgment.regions[r]);
-        return `${regionSpec(r).label} ${actionLabel(r, top.action)} ${Math.round(top.p * 100)}%`;
+        return `${regionLabel(r)} ${actionLabel(r, top.action)} ${Math.round(top.p * 100)}%`;
       }).join(', ')
     : '';
 }
@@ -769,9 +784,11 @@ function strongestAction(frame: LiveFrame): string {
     const w = frame.debug.weights[v.key] ?? 0;
     if (w <= best.w) continue;
     const spec = regionSpec(v.region);
+    // 쉬는 동작인지, 부위 이름이 필요한지는 엔진이 가진 한국어 이름으로 가린다
+    if (RESTING.has(spec.actions[v.action]?.label ?? v.action)) continue;
     const label = actionLabel(v.region, v.action);
-    if (RESTING.has(label)) continue;
-    best = { label: NEEDS_REGION.has(spec.label) && !label.includes(spec.label) ? `${spec.label} ${label}` : label, w };
+    const region = regionLabel(v.region);
+    best = { label: NEEDS_REGION.has(spec.label) && !label.includes(region) ? `${region} ${label}` : label, w };
   }
   return best.label;
 }
@@ -832,6 +849,18 @@ function bindControls(): void {
     store.set('mode', director.mode);
   });
 
+  // 정적 페이지는 녹화가 있는 방식(선택지에서 고르기)만 재생한다
+  if (STATIC_PAGE) {
+    director.mode = 'choices';
+    channelMode.checked = false;
+    channelMode.disabled = true;
+  }
+
+  // 화면 언어
+  for (const b of document.querySelectorAll<HTMLElement>('.lang-toggle')) {
+    b.addEventListener('click', () => applyLang(lang() === 'ko' ? 'en' : 'ko'));
+  }
+
   // 온보딩
   for (const b of document.querySelectorAll<HTMLElement>('[data-go]')) b.addEventListener('click', () => goStep(Number(b.dataset.go)));
   $('step-2-back').addEventListener('click', () => (state.changing ? closeChange(false) : goStep(1)));
@@ -887,7 +916,7 @@ function bindControls(): void {
   $('interrupt').addEventListener('click', () => connection.interrupt());
   $<HTMLSelectElement>('voice').addEventListener('change', (event) => {
     setVoice((event.target as HTMLSelectElement).value);
-    if (state.conn === 'on') setStatus('목소리는 다음에 대화를 시작할 때 바뀝니다.');
+    if (state.conn === 'on') setStatus(t('status.voiceNext'));
   });
   $<HTMLInputElement>('vrm-file').addEventListener('change', (event) => {
     const file = (event.target as HTMLInputElement).files?.[0];
@@ -895,9 +924,9 @@ function bindControls(): void {
     setNotice('');
     loadVrm(URL.createObjectURL(file), file.name)
       .then(() => showAvatar('vrm'))
-      .catch((err: unknown) => setNotice(`3D 모델을 불러오지 못했어요: ${err instanceof Error ? err.message : String(err)}`));
+      .catch((err: unknown) => setNotice(t('vrm.failed', { message: err instanceof Error ? err.message : String(err) })));
   });
-  $('sim-demo').addEventListener('click', () => runDemo(DEMO_LINES));
+  $('sim-demo').addEventListener('click', () => runDemo());
   $('sim-say').addEventListener('click', () => {
     const text = $<HTMLTextAreaElement>('sim-text').value.trim();
     if (text) runDemo([{ speaker: 'assistant', text }]);
@@ -905,11 +934,41 @@ function bindControls(): void {
   $('sim-stop').addEventListener('click', () => simulation.stop());
 }
 
-async function init(): Promise<void> {
+/** 화면 언어를 바꾸고, 코드가 만든 글을 모두 다시 그린다. AI 가 쓰는 말은 다음 연결부터 바뀐다. */
+function applyLang(next: Lang): void {
+  setLang(next);
+  store.set('lang', next);
+  connectionOptions.sessionUrl = `/api/session?lang=${next}`;
+  connectionOptions.transcriptionSessionUrl = `/api/transcription-session?lang=${next}`;
+  connectionOptions.greeting =
+    next === 'en' ? '(The conversation is starting. Greet the user warmly first and ask how their day has been.)' : undefined;
+  for (const b of document.querySelectorAll<HTMLElement>('.lang-toggle')) {
+    b.textContent = t('lang.switch');
+    b.setAttribute('aria-label', t('lang.label'));
+  }
   buildRegionRows();
   showStats(director.stats);
-  takeThumbnails();
   buildAvatarCards();
+  if (vrm) showModelInfo(vrmLabel);
+  else $('model-info').textContent = t('vrm.info');
+  if (messages.length === 0) clearConversation();
+  if (state.step === 3) void checkMicPermission();
+  // 재생 중이던 예시 대화는 새 언어로 처음부터 다시 튼다
+  if (simulation.running) restartDemo();
+  lastRender = '';
+  refresh();
+}
+
+/** 재생 중인 예시 대화를 멈추고 지금 언어와 몸으로 다시 튼다 */
+function restartDemo(): void {
+  simulation.stop();
+  void demo.then(() => runDemo());
+}
+
+async function init(): Promise<void> {
+  document.body.dataset.static = STATIC_PAGE ? 'on' : 'off';
+  takeThumbnails();
+  applyLang(lang());
   showAvatar(state.avatar);
   bindControls();
 
@@ -921,13 +980,20 @@ async function init(): Promise<void> {
   tick();
   setInterval(updateTimer, 1000);
 
+  if (STATIC_PAGE) {
+    // 서버가 없다. 음성 대화는 끄고, 표정은 녹화된 판단으로 재생한다.
+    setStatus(t('status.static'));
+    lastRender = '';
+    refresh();
+    return;
+  }
   const config = (await (await fetch('/api/config')).json()) as AppConfig;
   state.config = config;
   if (!config.voices.includes(state.voice)) state.voice = config.voice;
   $('voice').innerHTML = config.voices.map((v) => `<option value="${v}">${voiceLabel(v)}</option>`).join('');
   buildVoiceChips();
-  if (!config.jev) setNotice('TYPESAFE_API_KEY 가 없어 표정 판단을 할 수 없어요. 루트의 .env 에 넣고 서버를 다시 시작하세요.');
-  setStatus(config.openai ? `준비됨 (${config.model})` : 'OPENAI_API_KEY 가 없어 음성 대화는 할 수 없습니다.');
+  if (!config.jev) setNotice(t('notice.noJev'));
+  setStatus(config.openai ? t('status.ready', { model: config.model }) : t('status.noOpenai'));
   lastRender = '';
   refresh();
 }

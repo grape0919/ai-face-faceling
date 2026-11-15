@@ -91,6 +91,21 @@ public/brand/      로고(심볼, 조합형)
 | `@faceling/rigs` | 페이스링·로봇·강아지 얼굴과 VRM 연결 |
 | `@faceling/server` | `/api/session`, `/api/transcription-session`, `/api/judge` 처리기 |
 
+### 화면 언어
+
+화면은 한국어와 영어로 볼 수 있다. 오른쪽 위의 언어 버튼으로 바꾸거나 주소에 `?lang=en`, `?lang=ko` 를 붙인다. 처음에는 브라우저 언어를 따른다. 글은 `src/i18n.ts` 에 있다. 언어를 바꾸면 AI 의 말투와 자기 몸 지시(`server.ts`), 사용자 말의 전사 언어도 다음 연결부터 그 언어가 된다.
+
+### 정적 페이지(녹화 데모)
+
+서버와 키 없이 예시 대화만 재생하는 페이지를 만들 수 있다. GitHub Pages 에 올라가는 것이 이것이다.
+
+```bash
+npm run rt:record   # 예시 대화를 실제 Jev 로 돌려 판단을 public/recordings.json 에 녹화한다 (TYPESAFE_API_KEY 필요)
+npm run rt:pages    # apps/realtime/dist 에 정적 페이지를 만든다
+```
+
+정적 페이지는 판단을 묻는 대신 녹화에서 같은 구간의 답을 찾아 쓴다(`src/recorded.ts`). 그래서 `src/simulate.ts` 의 예시 대화나 판단 질문을 바꾸면 `rt:record` 를 다시 돌려 녹화를 새로 남겨야 한다. 개발 서버에서도 주소에 `?static` 을 붙이면 같은 방식으로 돌아간다. main 에 올리면 `.github/workflows/pages.yml` 이 빌드해서 배포한다.
+
 개발 중에는 패키지를 빌드하지 않는다. `npm run rt:dev` 는 `faceling-source` 조건으로 각 패키지의 TS 원본을 바로 읽는다. 브라우저 쪽 패키지는 고친 뒤 화면을 새로 고치면, `@faceling/server` 는 서버를 다시 시작하면 반영된다.
 
 다른 음성 대화 서비스에 붙이려면 `packages/openai-realtime/src/connection.ts` 에 해당하는 어댑터만 새로 쓰면 된다. LiveDirector 가 받는 사건은 다음이 전부다.

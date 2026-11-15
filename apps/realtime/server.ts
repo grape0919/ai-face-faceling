@@ -63,6 +63,33 @@ CHARACTERS[DOG_BODY.name] =
   `${CHARACTERS[FACE_BODY.name]} ` +
   '당신은 큰 귀가 달린 강아지입니다. 귀를 쫑긋 세우거나 축 늘어뜨릴 수 있고, 부탁받으면 "네, 귀 쫑긋!"처럼 지금 하는 말 한마디로 답하세요.';
 
+/** 화면 언어가 영어일 때 쓰는 지시. 내용은 한국어와 같다. */
+const INSTRUCTIONS_EN =
+  process.env.OPENAI_REALTIME_INSTRUCTIONS_EN ||
+  'You are a warm, expressive conversation partner. Speak natural English and keep each reply to two or three sentences. ' +
+    'Respond to how the user feels, and make a light joke now and then.';
+
+const FACE_EN =
+  'You have an expressive face that the user sees on screen. When the user asks for a wink, a smile, a surprised look and so on, ' +
+  'answer with one short line that does it right now, like "Sure thing, wink!". Do not describe the expression in detail. The user sees it on screen. ' +
+  'Never say that you have no face or cannot make expressions. ' +
+  'You can also move your head: lift it, lower it, turn it left or right, and face the front again. ' +
+  'When asked, answer with one short line that does it right now, like "Okay, turning to the right!". Directions are from the user\'s point of view, looking at the screen. ' +
+  'You have no arms or hands, so if asked for such a gesture, offer a nod or a smile instead.';
+
+const CHARACTERS_EN: Record<string, string> = {
+  [FACE_BODY.name]: FACE_EN,
+  [DOG_BODY.name]:
+    `${FACE_EN} ` +
+    'You are a dog with big ears. You can perk your ears up or let them droop, and when asked you answer with one short line that does it right now, like "Okay, ears up!".',
+  [ARM_BODY.name]:
+    'You are a workbench robot arm with no face. On your base you have a shoulder, an elbow, a wrist and a claw, with a light on the wrist. ' +
+    'You can reach right, left, up and down, reach toward the user, and wave, and you show feelings with your body. ' +
+    'When the user asks you to move, answer with one short line that does it right now, like "Okay, reaching to the right!". ' +
+    'Do not describe how your joints moved. The user sees it on screen. Never say that you cannot move. ' +
+    'Directions are from the user\'s point of view, looking at the screen. You have no eyes, so you cannot wink, but when asked, blink your light instead, like "I will wink my light instead!".',
+};
+
 /** 판단 기록. 어떤 맥락으로 무엇을 물었고 무엇이 나왔는지 한 줄씩 남긴다. */
 const LOG_DIR = path.join(APP_ROOT, 'logs');
 const LOG_FILE = path.join(LOG_DIR, `judge-${new Date().toISOString().slice(0, 10)}.jsonl`);
@@ -85,13 +112,24 @@ async function logJudgment(input: AnalyzerInput, judgment: Judgment, ms: number)
   await appendFile(LOG_FILE, `${JSON.stringify(row)}\n`, 'utf8');
 }
 
-const api = toNodeHandler(
-  createFacelingHandler({
-    session: { model: MODEL, voice: VOICE, instructions: INSTRUCTIONS, characters: CHARACTERS, language: 'ko' },
-    transcription: { model: LIVE_TRANSCRIBE_MODEL, language: 'ko' },
-    judge: { bodies: [FACE_BODY, DOG_BODY, ARM_BODY], onJudgment: logJudgment },
-  }),
-);
+/** 화면 언어마다 처리기를 하나씩 둔다. AI 의 말투·자기 몸 지시와 전사 언어가 다르고, 판단은 같다. */
+const judgeOptions = { bodies: [FACE_BODY, DOG_BODY, ARM_BODY], onJudgment: logJudgment };
+const apis = {
+  ko: toNodeHandler(
+    createFacelingHandler({
+      session: { model: MODEL, voice: VOICE, instructions: INSTRUCTIONS, characters: CHARACTERS, language: 'ko' },
+      transcription: { model: LIVE_TRANSCRIBE_MODEL, language: 'ko' },
+      judge: judgeOptions,
+    }),
+  ),
+  en: toNodeHandler(
+    createFacelingHandler({
+      session: { model: MODEL, voice: VOICE, instructions: INSTRUCTIONS_EN, characters: CHARACTERS_EN, language: 'en' },
+      transcription: { model: LIVE_TRANSCRIBE_MODEL, language: 'en' },
+      judge: judgeOptions,
+    }),
+  ),
+};
 
 /** 화면이 처음 열릴 때 읽는 설정. 키는 있는지만 알려 준다. */
 const config = JSON.stringify({
@@ -105,6 +143,8 @@ const config = JSON.stringify({
 
 const vite = await createViteServer({
   root: APP_ROOT,
+  // 정적 페이지 빌드용 vite.config.ts 는 읽지 않는다
+  configFile: false,
   appType: 'spa',
   server: { middlewareMode: true },
   // 저장소 안의 @faceling/* 패키지는 빌드하지 않고 TS 원본을 그대로 쓴다
@@ -119,7 +159,9 @@ const server = createServer((req, res) => {
     return;
   }
   if (route.startsWith('/api/')) {
-    void api(req, res);
+    // 화면이 주소에 ?lang=en 을 붙여 보낸다
+    const english = new URLSearchParams((req.url ?? '').split('?')[1] ?? '').get('lang') === 'en';
+    void apis[english ? 'en' : 'ko'](req, res);
     return;
   }
   vite.middlewares(req, res);
