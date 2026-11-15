@@ -25,7 +25,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # 잠금 파일을 Windows 에서 만들어 Linux 용 빌드 도구 바이너리가 빠져 있다(npm 의 알려진 문제).
+      # 그래서 잠금 파일 없이 새로 설치한다. 버전은 package.json 의 범위 안에서 정해진다.
+      - run: rm package-lock.json && npm install
       - run: npm run rt:pages
       - uses: actions/upload-pages-artifact@v3
         with:
