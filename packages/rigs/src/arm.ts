@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { Expression } from '@faceling/core/compositor';
+import { ARM_BODY } from './bodies.js';
 
 /**
  * 얼굴이 없는 작업대 로봇팔. 받침, 회전대, 어깨, 팔꿈치, 손목, 집게로 되어 있다.
@@ -16,9 +17,9 @@ import type { Expression } from '@faceling/core/compositor';
  * - 듣기 → 다가와 귀 기울이고, 생각 중 → 고개를 돌리고 집게를 까딱인다, 말하기 → 집게와 불빛이 말에 맞춰 움직인다
  * - 끄덕임·가로젓기 → 손목 까딱임과 좌우 흔들기
  *
- * 감정과 별개로, AI 가 실제로 하는 팔 동작(arm 부위의 판단: 오른쪽, 왼쪽, 위, 아래, 앞으로, 흔들기)은
+ * 감정과 별개로, AI 가 일부러 하는 움직임(move 부위의 판단: 오른쪽, 왼쪽, 위, 아래, 앞으로, 흔들기)은
  * 감정 자세 위에 덮어쓴다. 윙크는 눈이 없으니 집게를 찡긋하고 불빛을 깜빡이는 것으로 대신한다.
- * 이 리그로 판단을 받으려면 LiveDirector.parts 에 'arm' 을 넣는다.
+ * 무엇을 할 수 있는지는 ARM_BODY(bodies.ts)에 선언되어 있고, LiveDirector.body 에 this.body 를 넣으면 그대로 판단을 받는다.
  */
 
 /** 팔 길이(m) */
@@ -94,7 +95,8 @@ export function bodyFeelings(e: Expression) {
 }
 
 /**
- * 팔 동작(arm 부위의 판단)별 자세. 쉬는 자세에서 얼마나 움직이는지가 아니라 도착할 자세 자체다.
+ * 일부러 하는 움직임(move 부위의 판단)을 팔로 옮긴 자세. 쉬는 자세에서 얼마나 움직이는지가 아니라 도착할 자세 자체다.
+ * 여기 있는 이름이 ARM_BODY.moves 에 선언한 것과 같아야 한다(home 은 붙잡은 자세를 푸는 것이라 자세가 없다).
  * 방향은 보는 사람 기준이다: right 는 화면 오른쪽. 회전대 각도는 받침이 놓인 방향(FACING, TURN_BACK)을 빼고 잰다.
  */
 const reachYaw = (screenAngle: number): number => screenAngle - FACING - TURN_BACK;
@@ -119,7 +121,7 @@ function commandPose(e: Expression, t: number): { weight: number; pose: Joints }
   let best = '';
   let weight = 0;
   for (const name of Object.keys(COMMANDS)) {
-    const v = e.weights[`arm.${name}`] ?? 0;
+    const v = e.weights[`move.${name}`] ?? 0;
     if (v > weight) [best, weight] = [name, v];
   }
   return { weight, pose: best ? COMMANDS[best]!(t) : { ...REST } };
@@ -127,8 +129,8 @@ function commandPose(e: Expression, t: number): { weight: number; pose: Joints }
 
 export class ArmRig {
   readonly mode = 'arm' as const;
-  /** 얼굴 말고 이 몸이 가진 부위. LiveDirector.parts 에 넣으면 판단에 팔 동작 질문이 함께 간다. */
-  readonly parts = ['arm'] as const;
+  /** 이 몸이 할 수 있는 움직임. LiveDirector.body 에 넣으면 판단에 팔 동작 질문이 함께 간다. */
+  readonly body = ARM_BODY;
   readonly object = new THREE.Group();
   /** 카메라가 바라볼 중심 */
   readonly headCenter = new THREE.Vector3(0.04, 1.46, 0.08);

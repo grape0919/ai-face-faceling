@@ -1,6 +1,6 @@
 import { createJevAnalyzer } from '@faceling/core/analyzers/jev';
 import type { Analyzer, AnalyzerInput, Judgment } from '@faceling/core/judgment';
-import { OPTIONAL_REGIONS } from '@faceling/core/regions';
+import type { BodySpec } from '@faceling/core/body';
 
 /**
  * 프레임워크에 상관없는 요청 처리기. 표준 Request 를 받아 Response 를 돌려준다.
@@ -189,6 +189,11 @@ export interface JudgeHandlerOptions {
   apiKey?: string;
   /** Jev 모델. 없으면 JEV_MODEL, 그것도 없으면 'jev-latest'. */
   model?: string;
+  /**
+   * 판단에 쓸 수 있는 몸 명세들(예: @faceling/rigs 의 FACE_BODY, ARM_BODY). 브라우저가 본문의 body 로 이름을 보내면
+   * 그 몸이 할 수 있는 움직임을 함께 묻는다. 없으면 감정 표현만 판단한다.
+   */
+  bodies?: BodySpec[];
   /** 판단이 끝날 때마다 부른다. 기록을 남길 때 쓴다. 여기서 난 오류는 응답에 영향을 주지 않는다. */
   onJudgment?: (input: AnalyzerInput, judgment: Judgment, ms: number) => void | Promise<void>;
 }
@@ -208,7 +213,8 @@ export function createJudgeHandler(options: JudgeHandlerOptions = {}): FetchHand
       context: text(body.context, 1200),
       current: text(body.current, 400),
       following: text(body.following, 400),
-      parts: Array.isArray(body.parts) ? OPTIONAL_REGIONS.filter((r) => (body.parts as unknown[]).includes(r)) : [],
+      // 브라우저는 몸의 이름만 보낸다. 질문에 들어가는 설명은 서버가 가진 명세에서만 나온다.
+      body: options.bodies?.find((b) => b.name === text(body.body, 40)),
     };
     if (!input.current.trim()) return json(400, { error: 'current 가 비어 있습니다' });
     const started = performance.now();

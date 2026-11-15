@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AnalyzerInput, Judgment } from '@faceling/core/judgment';
 import { REGION_KEYS, topAction } from '@faceling/core/regions';
+import { ARM_BODY, FACE_BODY } from '@faceling/rigs/bodies';
 import {
   DEFAULT_LIVE_TRANSCRIBE_MODEL,
   DEFAULT_REALTIME_MODEL,
@@ -42,14 +43,14 @@ const INSTRUCTIONS =
  * 표정 판단이 그 말을 보고 얼굴과 팔을 움직인다. 할 수 없는 동작은 할 수 없다고 하게 한다.
  */
 const CHARACTERS: Record<string, string> = {
-  face:
+  [FACE_BODY.name]:
     '당신에게는 화면에 보이는 표정 풍부한 얼굴이 있습니다. 사용자가 윙크, 미소, 놀란 표정 같은 것을 부탁하면 ' +
     '"좋아요, 찡긋!"처럼 지금 그 표정을 해 보이는 말 한마디로 답하세요. 표정을 자세히 설명하지 마세요. 사용자가 화면으로 직접 봅니다. ' +
     '얼굴이 없다거나 표정을 지을 수 없다고 말하지 마세요. ' +
     '고개도 움직일 수 있습니다. 위로 들고, 아래로 숙이고, 왼쪽이나 오른쪽으로 돌리고, 다시 정면을 볼 수 있습니다. ' +
     '부탁받으면 "네, 오른쪽으로 휙!"처럼 지금 하는 말 한마디로 답하세요. 방향은 사용자가 화면을 보는 쪽 기준입니다. ' +
     '팔이나 손은 없으니 그런 동작을 부탁받으면 대신 고개를 끄덕이거나 웃어 보이겠다고 하세요.',
-  arm:
+  [ARM_BODY.name]:
     '당신은 얼굴이 없는 작업대 로봇팔입니다. 받침 위에 어깨, 팔꿈치, 손목, 집게가 있고 손목에 불빛이 있습니다. ' +
     '팔을 오른쪽, 왼쪽, 위, 아래로 뻗고, 사용자 쪽으로 내밀고, 흔들 수 있으며, 감정도 몸짓으로 드러냅니다. ' +
     '사용자가 움직여 보라고 하면 "네, 오른쪽으로 쭉!"처럼 지금 그 동작을 하는 말 한마디로 답하세요. ' +
@@ -67,7 +68,7 @@ async function logJudgment(input: AnalyzerInput, judgment: Judgment, ms: number)
       return [r, `${top.action} ${Math.round(top.p * 100)}`];
     }),
   );
-  const row = { at: new Date().toISOString(), ms, ...input, intensity: Number(judgment.intensity.toFixed(2)), picks };
+  const row = { at: new Date().toISOString(), ms, ...input, body: input.body?.name, intensity: Number(judgment.intensity.toFixed(2)), picks };
   await mkdir(LOG_DIR, { recursive: true });
   await appendFile(LOG_FILE, `${JSON.stringify(row)}\n`, 'utf8');
 }
@@ -76,7 +77,7 @@ const api = toNodeHandler(
   createFacelingHandler({
     session: { model: MODEL, voice: VOICE, instructions: INSTRUCTIONS, characters: CHARACTERS, language: 'ko' },
     transcription: { model: LIVE_TRANSCRIBE_MODEL, language: 'ko' },
-    judge: { onJudgment: logJudgment },
+    judge: { bodies: [FACE_BODY, ARM_BODY], onJudgment: logJudgment },
   }),
 );
 

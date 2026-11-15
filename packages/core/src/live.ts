@@ -3,7 +3,8 @@ import { BLINK_DURATION, Compositor, bell, type Expression, type MouthFeatures, 
 import { facePose } from './face.js';
 import type { AnalyzerInput, Judgment } from './judgment.js';
 import type { FacePose } from './mapping.js';
-import { regionSpec, type Region } from './regions.js';
+import type { BodySpec } from './body.js';
+import { regionSpec } from './regions.js';
 import { COMMAND_FLOOR, VARIANTS, actionWeight, amplitude, targetWeights, zeroWeights, type Gesture, type Weights } from './weights.js';
 
 /**
@@ -34,7 +35,7 @@ export interface LiveFrame extends FacePose {
   debug: { turn: TurnState; weights: Weights; cue: LiveCue | null };
 }
 
-/** 일부러 하는 동작(팔 동작 등, 질문이 prompt 로 따로 있는 부위)의 세기 키 */
+/** 일부러 하는 움직임(질문이 prompt 로 따로 있는 부위)의 세기 키 */
 const COMMAND_KEYS = VARIANTS.filter((v) => regionSpec(v.region).prompt).map((v) => v.key);
 
 /** 예약된 표정을 시각에 맞춰 얼굴로 만든다. */
@@ -200,7 +201,7 @@ const REACT_MAX = 6;
 const REACT_SCALE = 0.85;
 /** AI 가 말을 시작한 뒤 듣는 반응이 남아 있는 시간 */
 const REACT_BRIDGE = 1.0;
-/** 부탁받은 팔 자세는 그 말이 끝난 뒤에도 이만큼 남는다(초). 다음 팔 동작이나 제자리 명령이 오면 그때 바뀐다. */
+/** 부탁받은 자세는 그 말이 끝난 뒤에도 이만큼 남는다(초). 다음 움직임이나 제자리 명령이 오면 그때 바뀐다. */
 const COMMAND_HOLD = 5;
 /** 이 세기 이상으로 또렷한 동작만 붙잡아 둔다 */
 const HOLD_MIN = 0.5;
@@ -263,10 +264,10 @@ export class LiveDirector {
   private reactSeq = 0;
   private side: 'L' | 'R' = 'L';
   /**
-   * 얼굴 말고도 지금 캐릭터가 가진 부위(예: ['arm']). AI 가 말하는 구간의 판단에 함께 묻는다.
-   * 캐릭터를 바꾸면 바깥에서 고친다.
+   * 지금 캐릭터의 몸 명세(리그의 body). AI 가 말하는 구간의 판단에 그 몸이 할 수 있는 움직임을 함께 묻는다.
+   * 캐릭터를 바꾸면 바깥에서 고친다. 없으면 감정 표현만 판단한다.
    */
-  parts: Region[] = [];
+  body: BodySpec | null = null;
 
   constructor(
     readonly face: LiveFace,
@@ -307,7 +308,7 @@ export class LiveDirector {
     if (!response.primeAsked && response.clauses.length === 0 && charCount(response.raw) >= PRIME_CHARS) {
       response.primeAsked = true;
       void this.options
-        .judge({ speaker: 'assistant', context: this.contextLines(true).join('\n'), current: response.raw.trim(), parts: this.parts })
+        .judge({ speaker: 'assistant', context: this.contextLines(true).join('\n'), current: response.raw.trim(), body: this.body ?? undefined })
         .then((judgment) => {
           response.prime = judgment;
           this.tryPrime(response);
@@ -507,7 +508,7 @@ export class LiveDirector {
     const asked = this.options.clock();
     const following = this.followingOf(response, pending);
     void this.options
-      .judge({ speaker: 'assistant', context: pending.context, current: pending.clause.text, following, parts: this.parts })
+      .judge({ speaker: 'assistant', context: pending.context, current: pending.clause.text, following, body: this.body ?? undefined })
       .then((judgment) => {
         const now = this.options.clock();
         pending.judgment = judgment;
@@ -587,7 +588,7 @@ export class LiveDirector {
   }
 
   /**
-   * 이 절에서 또렷하게 고른 팔 동작을 말이 끝난 뒤에도 붙잡아 둔다. "오른쪽으로 쭉!" 한마디 뒤에 팔이 바로 돌아가지 않게 한다.
+   * 이 절에서 또렷하게 고른 움직임을 말이 끝난 뒤에도 붙잡아 둔다. "오른쪽으로 쭉!" 한마디 뒤에 바로 돌아가지 않게 한다.
    * 제자리(home)를 골랐으면 붙잡아 둔 자세를 푼다.
    */
   private holdCommands(weights: Weights, t: number, end: number): void {

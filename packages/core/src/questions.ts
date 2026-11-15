@@ -1,4 +1,5 @@
 import { REGION_KEYS, regionSpec, type Region } from './regions.js';
+import type { BodySpec } from './body.js';
 import type { AnalyzerInput } from './judgment.js';
 
 /**
@@ -7,7 +8,7 @@ import type { AnalyzerInput } from './judgment.js';
  * 부위와 선택지는 shared/regions.ts 에 있다. Jev 와 LLM 대조군이 같은 문구를 쓴다.
  * 문구나 선택지를 바꾸면 QUESTIONS_VERSION 을 올린다.
  */
-export const QUESTIONS_VERSION = 'r7';
+export const QUESTIONS_VERSION = 'r8';
 
 export type Role = 'speaking' | 'listening';
 export const ROLES: Role[] = ['speaking', 'listening'];
@@ -45,9 +46,12 @@ export const SCENES: Record<Role, string> = {
     `Most everyday or factual lines call for a calm, attentive face. ${COMMON}`,
 };
 
-export const regionInstructions = (region: Region, role: Role): string => {
+export const regionInstructions = (region: Region, role: Role, body?: BodySpec): string => {
   const prompt = regionSpec(region).prompt;
-  if (prompt) return `${prompt} ${COMMON.replace('Judge the face for', 'Judge the movement for')} Pick the single best option.`;
+  if (prompt) {
+    const scene = prompt.replace('{body}', body?.describe ?? 'a character.');
+    return `${scene} ${COMMON.replace('Judge the face for', 'Judge the movement for')} Pick the single best option.`;
+  }
   return role === 'speaking'
     ? `${SCENES.speaking} To look natural and emotionally fitting, what should ${regionSpec(region).subject} do while saying \`current\`? ` +
       'Pick the single best option. Pick the neutral option when the line carries no clear feeling.'
@@ -57,13 +61,17 @@ export const regionInstructions = (region: Region, role: Role): string => {
 
 /**
  * 선택지 이름 → 설명. 듣는 구간에서는 듣는 동안 고를 수 없는 동작이 빠진다.
- * parts 는 이 캐릭터가 얼굴 말고 가진 부위다. 그 몸에 맞는 설명이 따로 있는 동작은 그것을 쓴다.
+ * 몸 명세가 있으면 그 몸에 맞춘다: 움직임(move)은 그 몸이 할 수 있는 것만 그 몸의 설명으로 묻고,
+ * 다른 동작도 그 몸에서 뜻이 달라지는 것은 명세의 설명을 쓴다.
  */
-export function regionCriteria(region: Region, role: Role, parts: readonly Region[] = []): Record<string, string> {
+export function regionCriteria(region: Region, role: Role, body?: BodySpec): Record<string, string> {
+  const spec = regionSpec(region);
   const out: Record<string, string> = {};
-  for (const [name, a] of Object.entries(regionSpec(region).actions)) {
-    const body = parts.find((p) => a.bodies?.[p]);
-    const text = role === 'speaking' ? (body ? (a.bodies?.[body] as string) : a.desc) : a.listen;
+  for (const [name, a] of Object.entries(spec.actions)) {
+    const moves = region === 'move' ? (body?.moves as Record<string, string> | undefined) : undefined;
+    if (moves && name !== spec.rest && !(name in moves)) continue;
+    const custom = moves ? moves[name] : body?.actions?.[`${region}.${name}`];
+    const text = role === 'speaking' ? (custom ?? a.desc) : a.listen;
     if (text !== false) out[name] = text;
   }
   return out;

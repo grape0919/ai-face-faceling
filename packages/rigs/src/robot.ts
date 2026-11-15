@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
+import { FACE_BODY } from './bodies.js';
 
 /**
  * 코드로 그린 로봇 얼굴. 머리는 3D 도형이고, 얼굴은 머리 앞면의 화면에 2D 로 그린다.
@@ -39,6 +40,8 @@ const dir = (side: Side): number => (side === 'Left' ? 1 : -1);
 
 export class RobotRig {
   readonly mode = 'robot' as const;
+  /** 이 몸이 할 수 있는 움직임. LiveDirector.body 에 넣는다. */
+  readonly body = FACE_BODY;
   readonly supported: string[] = [...ARKIT_52];
   readonly object = new THREE.Group();
   /** 카메라가 바라볼 머리 중심 */

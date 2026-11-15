@@ -13,11 +13,6 @@ export interface ActionSpec {
   listen: string | false;
   /** 좌우 한쪽으로 치우치는 동작. 구간마다 방향을 정한다. */
   asymmetric?: boolean;
-  /**
-   * 그 부위(optional 부위의 이름, 예: 'arm')를 가진 몸에서 desc 대신 쓰는 설명.
-   * 같은 동작이 몸에 따라 다르게 나올 때 쓴다(눈이 없는 로봇팔의 윙크는 불빛 깜빡임).
-   */
-  bodies?: Record<string, string>;
 }
 
 export interface RegionSpec {
@@ -28,11 +23,14 @@ export interface RegionSpec {
   rest: string;
   actions: Record<string, ActionSpec>;
   /**
-   * 그 몸을 가진 캐릭터에서만 묻는 부위(예: 로봇팔). 판단을 요청할 때 parts 로 넘겨야 질문에 들어가고,
-   * 넘기지 않으면 기본 선택지로 채운다. AI 가 말하는 구간에서만 묻는다.
+   * 몸 명세(BodySpec)가 있을 때만 묻는 부위. 명세에 적힌 선택지만 묻고, 묻지 않으면 기본 선택지로 채운다.
+   * AI 가 말하는 구간에서만 묻는다.
    */
   optional?: boolean;
-  /** 감정 대신 "지금 실제로 하는 동작"을 묻는 부위의 질문. 있으면 기본 질문 문구 대신 쓴다. */
+  /**
+   * 감정 대신 "지금 실제로 하는 동작"을 묻는 부위의 질문. 있으면 기본 질문 문구 대신 쓴다.
+   * {body} 자리에 몸 명세의 설명(describe)이 들어간다.
+   */
   prompt?: string;
 }
 
@@ -106,9 +104,6 @@ export const REGIONS = {
         desc: 'One eye closes briefly in a playful wink: the assistant is actually winking right now, e.g. it was asked to wink and does it, or teases with a wink. Not for merely talking about winking or describing a wink it already did.',
         asymmetric: true,
         listen: false,
-        bodies: {
-          arm: 'The light on its wrist blinks off and on like a wink: the faceless arm is actually doing its version of a wink right now, e.g. it was asked to wink and blinks its light instead ("my light goes wink!"). Not for merely describing or recalling a wink it already did.',
-        },
       },
     },
   },
@@ -269,69 +264,36 @@ export const REGIONS = {
     },
   },
   /**
-   * 고개 돌리기. 감정이 아니라 AI 가 실제로 하는 고개 동작을 묻는다("고개 들어 봐" → "네, 위로!").
-   * 머리가 있는 얼굴 캐릭터에서만 묻는다. 감정에서 나오는 끄덕임, 갸웃, 숙임은 head 부위의 판단에서 따로 나온다.
+   * 일부러 하는 움직임. 감정이 아니라 AI 가 실제로 하는 동작을 묻는다("오른쪽으로 움직여 봐" → "네, 오른쪽으로 쭉!").
+   * 몸과 상관없는 의도다: 같은 move.left 를 얼굴은 고개 돌리기로, 로봇팔은 팔 뻗기로 옮긴다.
+   * 그 몸이 할 수 있는 선택지와 그 몸에서의 설명은 몸 명세(BodySpec.moves)가 정하고, 여기의 설명은 명세에 설명이 없을 때 쓴다.
    * 방향은 보는 사람 기준이다: right 는 화면 오른쪽.
    */
-  turn: {
-    label: '고개',
-    subject: "the assistant's head direction",
+  move: {
+    label: '움직임',
+    subject: "the assistant's body",
     rest: 'rest',
     optional: true,
     prompt:
-      'The assistant has a face shown on a screen and can move its head when asked. Which way should the head deliberately turn while the assistant says `current`? ' +
-      'Pick a direction only when the assistant is actually doing it right now or says it has just done it, for example because the user asked ' +
-      '("lift your head", "turn your face to the right") and it agrees. Left and right are as the user sees them on the screen. ' +
-      'Otherwise pick rest; feelings are shown separately.',
+      'The assistant has a body that the user sees on a screen: {body} When asked, it can move that body on purpose. ' +
+      'How should it deliberately move while the assistant says `current`? ' +
+      'Pick a movement only when the assistant is actually doing it right now or says it has just done it, for example because the user asked and it agrees. ' +
+      'Left and right are as the user sees them on the screen. Otherwise pick rest; feelings are shown separately.',
     actions: {
       rest: {
         label: '그대로',
-        desc: 'No deliberate head turn. Includes ordinary talk, talking about directions without turning, refusing, or saying it cannot.',
+        desc: 'No deliberate movement. Includes ordinary talk, describing or explaining a direction without moving, refusing, or saying it cannot.',
         listen: 'Listening.',
       },
-      up: { label: '위', desc: 'Lifting the head or looking up on purpose right now.', listen: false },
-      down: { label: '아래', desc: 'Lowering the head or looking down on purpose right now.', listen: false },
-      left: { label: '왼쪽', desc: 'Turning the head or face to the left right now.', listen: false },
-      right: { label: '오른쪽', desc: 'Turning the head or face to the right right now.', listen: false },
-      home: {
-        label: '정면',
-        desc: 'Turning back to face the user straight on right now because it was asked to or says so: "facing you again", "back to the front".',
-        listen: false,
-      },
-    },
-  },
-  /**
-   * 로봇팔. 감정이 아니라 AI 가 실제로 하는 팔 동작을 묻는다("오른쪽으로 쭉!", "안녕히 가세요!").
-   * 팔이 있는 캐릭터에서만 묻는다. 감정 몸짓(처짐, 들림)은 다른 부위의 판단에서 따로 나온다.
-   */
-  arm: {
-    label: '팔',
-    subject: "the assistant's robot arm",
-    rest: 'rest',
-    optional: true,
-    prompt:
-      'The assistant is a robot arm without a face and moves it while talking. Where should the arm go while the assistant says `current`? ' +
-      'Pick a movement only when the assistant is actually doing it right now, for example because the user asked and it agrees. ' +
-      'Otherwise pick rest; feelings are shown separately.',
-    actions: {
-      rest: {
-        label: '그대로',
-        desc: 'No deliberate movement. Includes describing or explaining a direction without moving, refusing, or saying it cannot.',
-        listen: 'Listening.',
-      },
-      right: { label: '오른쪽', desc: 'Reaching or swinging to the right right now.', listen: false },
-      left: { label: '왼쪽', desc: 'Reaching or swinging to the left right now.', listen: false },
-      up: { label: '위', desc: 'Raising the arm up right now: "up!", a cheer, a high reach.', listen: false },
-      down: { label: '아래', desc: 'Lowering the arm or reaching down right now.', listen: false },
-      forward: {
-        label: '앞으로',
-        desc: 'Reaching toward the user right now: offering something, "here you go", a high five, pointing at them.',
-        listen: false,
-      },
+      up: { label: '위로', desc: 'Moving, reaching or looking up on purpose right now.', listen: false },
+      down: { label: '아래로', desc: 'Moving, reaching or looking down on purpose right now.', listen: false },
+      left: { label: '왼쪽으로', desc: 'Moving or turning to the left right now.', listen: false },
+      right: { label: '오른쪽으로', desc: 'Moving or turning to the right right now.', listen: false },
+      forward: { label: '앞으로', desc: 'Moving toward the user right now: offering something, a high five, pointing at them.', listen: false },
       wave: { label: '흔들기', desc: 'Waving right now: hello, goodbye, cheering someone on.', listen: false },
       home: {
         label: '제자리',
-        desc: 'Returning to its resting position right now because it was asked to or says so: "back to the middle", "okay, relaxing", "arm down, done".',
+        desc: 'Going back to its resting position, facing the user, right now because it was asked to or says so.',
         listen: false,
       },
     },
@@ -340,9 +302,9 @@ export const REGIONS = {
 
 export type Region = keyof typeof REGIONS;
 export const REGION_KEYS = Object.keys(REGIONS) as Region[];
-/** 모든 캐릭터에서 묻는 얼굴 부위 */
+/** 언제나 묻는 부위. 이름은 얼굴 부위지만 뜻은 감정 표현이라, 얼굴 없는 몸도 이 판단을 몸짓으로 옮겨 쓴다. */
 export const FACE_REGIONS = REGION_KEYS.filter((r) => !(REGIONS[r] as RegionSpec).optional);
-/** 그 몸을 가진 캐릭터에서만 묻는 부위 */
+/** 몸 명세가 있을 때만 묻는 부위 */
 export const OPTIONAL_REGIONS = REGION_KEYS.filter((r) => (REGIONS[r] as RegionSpec).optional);
 
 /** 부위별 선택지 확률. 선택지 이름 → 0~1, 합은 1 근처. */

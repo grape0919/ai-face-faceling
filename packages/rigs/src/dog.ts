@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
+import { FACE_BODY } from './bodies.js';
 
 /**
  * 코드로 그린 강아지 얼굴. 전체를 2D 그림으로 그리고, 머리 회전은 이목구비를 밀어 주는 방식으로 흉내 낸다.
@@ -42,6 +43,8 @@ const dir = (side: Side): number => (side === 'Left' ? 1 : -1);
 
 export class DogRig {
   readonly mode = 'dog' as const;
+  /** 이 몸이 할 수 있는 움직임. LiveDirector.body 에 넣는다. */
+  readonly body = FACE_BODY;
   readonly supported: string[] = [...ARKIT_52];
   readonly object = new THREE.Group();
   /** 카메라가 바라볼 중심 */

@@ -2,7 +2,8 @@ import type { AnalyzerInput, Judgment } from '@faceling/core/judgment';
 import type { TurnState } from '@faceling/core/compositor';
 import { LiveDirector, LiveFace, type DirectorStats, type LiveFrame } from '@faceling/core/live';
 import { REGION_KEYS, regionSpec, topAction, type Region } from '@faceling/core/regions';
-import { ArmRig, DogRig, FacelingRig, RobotRig, VrmRig } from '@faceling/rigs';
+import type { BodySpec } from '@faceling/core/body';
+import { ArmRig, DogRig, FACE_BODY, FacelingRig, RobotRig, VrmRig } from '@faceling/rigs';
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VARIANTS } from '@faceling/core/weights';
@@ -42,8 +43,8 @@ const AVATAR_INFO: Record<Avatar, { name: string; desc: string }> = {
   vrm: { name: '3D 모델', desc: 'VRM 3D 모델. 처음 고르면 예제 모델을 내려받아요' },
 };
 const isAvatar = (value: string | null): value is Avatar => AVATARS.includes(value as Avatar);
-/** 서버가 AI 에게 알려 줄 몸. 얼굴 캐릭터는 모두 'face' 다. */
-const bodyOf = (avatar: Avatar): 'face' | 'arm' => (avatar === 'arm' ? 'arm' : 'face');
+/** 그 캐릭터의 몸 명세. 리그가 선언한 것을 그대로 쓴다(3D 모델은 불러오기 전에도 얼굴 몸이다). */
+const bodyOf = (avatar: Avatar): BodySpec => (avatar === 'vrm' ? (vrmRig?.body ?? FACE_BODY) : ensureRig(avatar).body);
 
 /** 목소리 칩에 먼저 보여 줄 것. 나머지는 개발자 패널에서 고른다. */
 const FEATURED_VOICES = ['marin', 'cedar', 'coral', 'ash'];
@@ -182,8 +183,8 @@ function frameAvatar(which: Avatar): void {
 
 function showAvatar(next: Avatar): void {
   state.avatar = next;
-  // 몸에 따라 부탁받은 동작의 질문이 다르다: 로봇팔은 팔 동작, 얼굴 캐릭터는 고개 돌리기
-  director.parts = next === 'arm' ? ['arm'] : ['turn'];
+  // 판단에 이 몸이 할 수 있는 움직임을 함께 묻는다. 무엇을 할 수 있는지는 리그가 선언한다.
+  director.body = bodyOf(next);
   if (next === 'vrm' && !vrm && !vrmLoading) {
     vrmLoading = loadVrm(SAMPLE_VRM, 'three-vrm 예제 모델')
       .then(() => {
@@ -231,7 +232,8 @@ async function judge(input: AnalyzerInput): Promise<Judgment> {
   const res = await fetch('/api/judge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    // 몸 명세는 이름만 보낸다. 설명은 서버가 가진 명세에서 나온다.
+    body: JSON.stringify({ ...input, body: input.body?.name }),
   });
   const body = (await res.json()) as { judgment?: Judgment; error?: string };
   if (!res.ok || !body.judgment) {
@@ -371,7 +373,7 @@ async function startConversation(withoutMic: boolean): Promise<void> {
   try {
     await connection.connect({
       voice: state.voice,
-      character: bodyOf(state.avatar),
+      character: bodyOf(state.avatar).name,
       withoutMic,
       greet: $<HTMLInputElement>('greet').checked,
       liveReactions: $<HTMLInputElement>('live-reactions').checked,
@@ -664,7 +666,7 @@ function closeChange(apply: boolean): void {
   }
   store.set('avatar', state.avatar);
   // 목소리와 AI 가 아는 자기 몸은 연결한 뒤에는 바꿀 수 없어서 다시 연결한다
-  if (state.conn === 'on' && (state.voice !== before.voice || bodyOf(state.avatar) !== bodyOf(before.avatar))) {
+  if (state.conn === 'on' && (state.voice !== before.voice || bodyOf(state.avatar).name !== bodyOf(before.avatar).name)) {
     const withoutMic = state.withoutMic;
     connection.disconnect();
     state.conn = 'off';
@@ -735,7 +737,7 @@ function showDebug(frame: LiveFrame): void {
  * 편안·정면처럼 아무것도 안 하는 동작은 빼고, "올림"처럼 부위 없이는 뜻이 모호한 것은 부위 이름을 붙인다.
  */
 const RESTING = new Set(['편안', '정면', '그대로']);
-const NEEDS_REGION = new Set(['눈썹', '눈', '시선', '팔', '고개']);
+const NEEDS_REGION = new Set(['눈썹', '눈', '시선']);
 function strongestAction(frame: LiveFrame): string {
   let best = { label: '', w: 0.2 };
   for (const v of VARIANTS) {

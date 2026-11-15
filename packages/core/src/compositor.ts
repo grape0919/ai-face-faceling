@@ -63,8 +63,7 @@ const DYNAMICS: Record<Region, { attack: number; release: number }> = {
   cheeks: { attack: 0.22, release: 1.0 },
   mouth: { attack: 0.2, release: 1.1 },
   head: { attack: 0.3, release: 0.8 },
-  turn: { attack: 0.3, release: 0.6 },
-  arm: { attack: 0.35, release: 0.7 },
+  move: { attack: 0.3, release: 0.65 },
 };
 /** 표정이 시작될 때 눈썹과 눈이 잠깐 더 크게 움직였다가 가라앉는다. */
 const ONSET_BOOST = 0.3;

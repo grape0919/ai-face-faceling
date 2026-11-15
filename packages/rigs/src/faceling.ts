@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
+import { FACE_BODY } from './bodies.js';
 
 /**
  * Faceling 로고와 같은 조형의 얼굴. 둥근 사각 머리에 크림색 테두리, 타원 눈 두 개, 앰버색 입.
@@ -48,6 +49,8 @@ const dir = (side: Side): number => (side === 'Left' ? 1 : -1);
 
 export class FacelingRig {
   readonly mode = 'faceling' as const;
+  /** 이 몸이 할 수 있는 움직임. LiveDirector.body 에 넣는다. */
+  readonly body = FACE_BODY;
   readonly supported: string[] = [...ARKIT_52];
   readonly object = new THREE.Group();
   /** 카메라가 바라볼 중심 */

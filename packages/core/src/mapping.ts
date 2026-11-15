@@ -89,11 +89,12 @@ export const ACTION_POSES: Record<string, ActionPose> = {
   'head.lowered': { shapes: {}, head: { pitch: 0.09 }, gaze: { y: -0.1 } },
   'head.raised': { shapes: {}, head: { pitch: -0.07 } },
 
-  // 부탁받은 고개 동작. 감정에서 나오는 머리 움직임보다 훨씬 크고, 눈도 그쪽을 본다. 방향은 보는 사람 기준이다.
-  'turn.up': { shapes: {}, head: { pitch: -0.3 }, gaze: { y: 0.3 } },
-  'turn.down': { shapes: {}, head: { pitch: 0.32 }, gaze: { y: -0.3 } },
-  'turn.left': { shapes: {}, head: { yaw: -0.45 }, gaze: { x: -0.3 } },
-  'turn.right': { shapes: {}, head: { yaw: 0.45 }, gaze: { x: 0.3 } },
+  // 일부러 하는 움직임(move)을 얼굴은 고개 돌리기로 옮긴다. 감정에서 나오는 머리 움직임보다 훨씬 크고, 눈도 그쪽을 본다.
+  // 방향은 보는 사람 기준이다. 얼굴이 할 수 없는 것(앞으로, 흔들기)은 정의가 없어 아무 일도 하지 않는다.
+  'move.up': { shapes: {}, head: { pitch: -0.3 }, gaze: { y: 0.3 } },
+  'move.down': { shapes: {}, head: { pitch: 0.32 }, gaze: { y: -0.3 } },
+  'move.left': { shapes: {}, head: { yaw: -0.45 }, gaze: { x: -0.3 } },
+  'move.right': { shapes: {}, head: { yaw: 0.45 }, gaze: { x: 0.3 } },
 };
 
 const sideName = (side: 'L' | 'R'): string => (side === 'L' ? 'Left' : 'Right');

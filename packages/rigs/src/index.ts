@@ -6,6 +6,7 @@
  * 기본 얼굴(Faceling), 로봇, 강아지, 로봇팔의 생김새는 CC BY-NC 4.0 이다(패키지의 LICENSE.md). 상업 제품에 쓰려면 허락이 필요하다.
  * VrmRig 는 @pixiv/three-vrm 으로 불러온 VRM 모델을 쓸 때만 필요하다.
  */
+export { FACE_BODY, ARM_BODY } from './bodies.js';
 export { FacelingRig } from './faceling.js';
 export { RobotRig } from './robot.js';
 export { DogRig } from './dog.js';

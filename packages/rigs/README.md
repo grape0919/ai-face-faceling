@@ -21,6 +21,8 @@ renderer.setAnimationLoop(() => {
 });
 ```
 
+Each rig declares what its body can do as `rig.body` (a `BodySpec`: the moves it can make and what they mean for that body). `FACE_BODY` and `ARM_BODY` are also exported from `@faceling/rigs/bodies`, which does not import three.js, so a server can use them. Set `director.body = rig.body` and pass the specs to `createJudgeHandler({ bodies })`; the judgment then answers body-neutral intents such as `move.left`, which a face turns into a head turn and the arm into a reach.
+
 `three` is a peer dependency. `@pixiv/three-vrm` is an optional peer, needed only for `VrmRig`.
 
 ## License

@@ -1,4 +1,5 @@
 import { FACE_REGIONS, OPTIONAL_REGIONS, regionSpec, restProbs, type Region } from '../regions.js';
+import type { BodySpec } from '../body.js';
 import { clamp, type Analyzer, type AnalyzerInput, type Judgment } from '../judgment.js';
 import {
   QUESTIONS_VERSION,
@@ -49,18 +50,23 @@ export function createJevAnalyzer(options: JevAnalyzerOptions = {}): Analyzer {
   const model = options.model || env('JEV_MODEL') || 'jev-latest';
 
   // 말하는 구간과 듣는 구간은 질문 세트가 따로다. 듣는 구간에서 빠진 선택지는 아래에서 확률 0 으로 채운다.
-  // 팔처럼 그 몸에만 있는 부위는 AI 가 말하는 구간에서, 요청에 parts 로 들어온 것만 묻는다.
-  // 몸에 따라 선택지 설명이 달라지는 동작도 있어(로봇팔의 윙크), 질문 세트는 역할과 몸의 조합마다 한 번 만들어 둔다.
+  // 몸 명세가 있으면 AI 가 말하는 구간에서 그 몸의 움직임을 함께 묻고, 선택지 설명도 그 몸에 맞춘다.
+  // 질문 세트는 역할과 몸의 조합마다 한 번 만들어 둔다(같은 이름의 명세는 내용이 같다고 본다).
   const sets = new Map<string, { questions: Record<string, unknown>; asked: Region[] }>();
-  const questionsFor = (role: Role, parts: readonly Region[] = []): { questions: Record<string, unknown>; asked: Region[] } => {
-    const extra = role === 'speaking' ? OPTIONAL_REGIONS.filter((r) => parts.includes(r)) : [];
-    const key = `${role}:${extra.join(',')}`;
+  const questionsFor = (role: Role, body?: BodySpec): { questions: Record<string, unknown>; asked: Region[] } => {
+    const speaking = role === 'speaking' ? body : undefined;
+    const key = `${role}:${speaking?.name ?? ''}`;
     let set = sets.get(key);
     if (!set) {
+      const extra = speaking && Object.keys(speaking.moves).length > 0 ? OPTIONAL_REGIONS : [];
       const asked = [...FACE_REGIONS, ...extra];
       const questions: Record<string, unknown> = { intensity: { type: 'score', ...intensityQuestion(role) } };
       for (const region of asked) {
-        questions[region] = { type: 'choice', instructions: regionInstructions(region, role), criteria: regionCriteria(region, role, extra) };
+        questions[region] = {
+          type: 'choice',
+          instructions: regionInstructions(region, role, speaking),
+          criteria: regionCriteria(region, role, speaking),
+        };
       }
       set = { questions, asked };
       sets.set(key, set);
@@ -73,7 +79,7 @@ export function createJevAnalyzer(options: JevAnalyzerOptions = {}): Analyzer {
     version: `${model}:${QUESTIONS_VERSION}`,
     async analyze(input: AnalyzerInput): Promise<Judgment> {
       const state = toFaceState(input);
-      const { questions, asked } = questionsFor(state.role, input.parts);
+      const { questions, asked } = questionsFor(state.role, input.body);
       const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },

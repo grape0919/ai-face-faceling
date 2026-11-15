@@ -1,6 +1,7 @@
 import type { VRM } from '@pixiv/three-vrm';
 import type { Object3D } from 'three';
 import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
+import { FACE_BODY } from './bodies.js';
 
 const avg = (shapes: Record<string, number>, base: string): number =>
   ((shapes[`${base}Left`] ?? 0) + (shapes[`${base}Right`] ?? 0)) / 2;
@@ -14,6 +15,8 @@ export class VrmRig {
   /** 소문자 ARKit 이름 → 모델의 실제 표정 이름 */
   private readonly arkit = new Map<string, string>();
   readonly mode: 'arkit' | 'preset';
+  /** 이 몸이 할 수 있는 움직임. LiveDirector.body 에 넣는다. */
+  readonly body = FACE_BODY;
   /** ARKit 52개 중 이 모델이 가진 것 */
   readonly supported: string[];
   private readonly known = new Set<string>();

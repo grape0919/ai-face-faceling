@@ -45,6 +45,11 @@
       "types": "./dist/dog.d.ts",
       "default": "./dist/dog.js"
     },
+    "./bodies": {
+      "faceling-source": "./src/bodies.ts",
+      "types": "./dist/bodies.d.ts",
+      "default": "./dist/bodies.js"
+    },
     "./arm": {
       "faceling-source": "./src/arm.ts",
       "types": "./dist/arm.d.ts",

@@ -1,4 +1,5 @@
-import { restProbs, type Region, type RegionProbs } from './regions.js';
+import type { BodySpec } from './body.js';
+import { restProbs, type RegionProbs } from './regions.js';
 
 export type Speaker = 'assistant' | 'user';
 
@@ -25,10 +26,10 @@ export interface AnalyzerInput {
    */
   following?: string;
   /**
-   * 얼굴 말고도 이 캐릭터가 가진 부위(regions.ts 에서 optional 인 것, 예: 'arm').
-   * AI 가 말하는 구간에서만 묻고, 넘기지 않은 부위는 기본 선택지로 채운다.
+   * 이 캐릭터의 몸 명세. 있으면 AI 가 말하는 구간에서 그 몸이 할 수 있는 움직임을 함께 묻고,
+   * 그 몸에서 뜻이 달라지는 동작은 명세의 설명으로 묻는다. 없으면 감정 표현만 판단한다.
    */
-  parts?: Region[];
+  body?: BodySpec;
 }
 
 export interface Analyzer {
