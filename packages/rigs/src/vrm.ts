@@ -1,7 +1,8 @@
 import type { VRM } from '@pixiv/three-vrm';
-import type { Object3D } from 'three';
+import { Vector3, type Object3D } from 'three';
 import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
 import { FACE_BODY } from './bodies.js';
+import type { Rig } from './rig.js';
 
 const avg = (shapes: Record<string, number>, base: string): number =>
   ((shapes[`${base}Left`] ?? 0) + (shapes[`${base}Right`] ?? 0)) / 2;
@@ -11,7 +12,7 @@ const avg = (shapes: Record<string, number>, base: string): number =>
  * 모델에 ARKit 이름의 표정이 있으면(이른바 perfect sync 모델) 그대로 넣고,
  * 없으면 VRM 표준 표정(happy, sad, aa 등)으로 뭉뚱그려 옮긴다. 뒤쪽은 표현력이 크게 떨어진다.
  */
-export class VrmRig {
+export class VrmRig implements Rig {
   /** 소문자 ARKit 이름 → 모델의 실제 표정 이름 */
   private readonly arkit = new Map<string, string>();
   readonly mode: 'arkit' | 'preset';
@@ -43,6 +44,23 @@ export class VrmRig {
 
   private set(name: string, value: number): void {
     if (this.known.has(name)) this.vrm.expressionManager?.setValue(name, Math.min(1, Math.max(0, value)));
+  }
+
+  /** 장면에 넣을 물체(모델 전체) */
+  get object(): Object3D {
+    return this.vrm.scene;
+  }
+
+  /** 머리가 화면에 꽉 차는 카메라 위치. 모델마다 키가 달라 머리뼈의 위치에서 잰다. */
+  get view(): { position: Vector3; target: Vector3 } {
+    const head = new Vector3();
+    this.vrm.humanoid.getNormalizedBoneNode('head')?.getWorldPosition(head);
+    return { position: new Vector3(head.x, head.y + 0.04, head.z + 1.15), target: new Vector3(head.x, head.y + 0.02, head.z) };
+  }
+
+  /** 머리카락과 옷의 흔들림(스프링 본) 등 모델 자체의 움직임을 진행시킨다 */
+  update(dt: number): void {
+    this.vrm.update(dt);
   }
 
   apply(pose: FacePose): void {

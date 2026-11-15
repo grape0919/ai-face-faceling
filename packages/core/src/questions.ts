@@ -8,7 +8,7 @@ import type { AnalyzerInput } from './judgment.js';
  * 부위와 선택지는 shared/regions.ts 에 있다. Jev 와 LLM 대조군이 같은 문구를 쓴다.
  * 문구나 선택지를 바꾸면 QUESTIONS_VERSION 을 올린다.
  */
-export const QUESTIONS_VERSION = 'r8';
+export const QUESTIONS_VERSION = 'r9';
 
 export type Role = 'speaking' | 'listening';
 export const ROLES: Role[] = ['speaking', 'listening'];
@@ -30,7 +30,13 @@ export const toFaceState = (input: AnalyzerInput): FaceState => ({
   ...(input.following?.trim() ? { following: input.following.trim() } : {}),
 });
 
-const INTRO = 'An AI assistant with an animated human-like face is in a voice conversation with a user. ';
+/**
+ * 감정은 몸이 무엇이든 얼굴 말투로 판단한다: 얼굴에 드러난다고 치고 부위별로 묻는다.
+ * 얼굴 캐릭터는 그대로 쓰고, 얼굴이 없는 몸은 그 판단을 자기 몸짓으로 옮긴다(feelings.ts).
+ * 그래서 "얼굴을 가진 AI"가 아니라 "감정이 얼굴에 드러난다고 그려 보라"고 쓴다.
+ */
+const INTRO =
+  'An AI assistant is in a voice conversation with a user. Picture its feelings shown on an animated human-like face. ';
 const COMMON =
   '`context` holds the preceding lines. `following`, when present, is what the same speaker says right after `current` ' +
   '(it may be cut off). Use both only to understand what `current` means and feels like: a short line such as ' +
@@ -80,9 +86,10 @@ export function regionCriteria(region: Region, role: Role, body?: BodySpec): Rec
 export const intensityQuestion = (role: Role): { instructions: string; criteria: string[] } => ({
   instructions:
     role === 'speaking'
-      ? `${SCENES.speaking} How strong should the assistant's facial expression be while saying \`current\`?`
-      : `${SCENES.listening} How strong should the assistant's facial reaction be while listening to \`current\`?`,
+      ? `${SCENES.speaking} How strongly should the assistant show its feeling while saying \`current\`?`
+      : `${SCENES.listening} How strongly should the assistant react while listening to \`current\`?`,
   criteria: [
+    // 감정이 얼굴에 드러난다고 그려 보고 고르는 것이라 얼굴 말투 그대로 둔다. 바꾸면 세기가 전체적으로 낮게 나온다.
     'None: a neutral, resting face',
     'Slight: a faint trace of expression',
     'Moderate: a clear but ordinary conversational expression',

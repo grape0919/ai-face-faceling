@@ -8,6 +8,7 @@ export * from './body.js';
 export * from './clauses.js';
 export * from './compositor.js';
 export * from './face.js';
+export * from './feelings.js';
 export * from './judgment.js';
 export * from './live.js';
 export * from './mapping.js';

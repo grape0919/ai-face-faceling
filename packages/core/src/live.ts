@@ -27,11 +27,16 @@ export interface LiveCue {
 }
 
 /**
- * 한 프레임의 출력. 얼굴용 값(ARKit 52, 머리, 시선)과, 그 바탕이 된 몸과 상관없는 표현을 함께 낸다.
+ * 한 프레임의 출력. 어떤 몸의 리그든 이것 하나를 받는다.
+ * 몸과 상관없는 표현(expression)과, 그것을 얼굴용으로 옮긴 값(ARKit 52, 머리, 시선)이 함께 들어 있다.
  * 얼굴 리그는 shapes/head/gaze 를, 얼굴이 없는 몸(로봇팔 등)은 expression 을 쓴다.
  */
-export interface LiveFrame extends FacePose {
+export interface Frame extends FacePose {
   expression: Expression;
+}
+
+/** LiveFace 가 내는 프레임. 지금 걸린 판단 등 화면에 보여 줄 정보가 더 붙는다. */
+export interface LiveFrame extends Frame {
   debug: { turn: TurnState; weights: Weights; cue: LiveCue | null };
 }
 

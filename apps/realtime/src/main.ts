@@ -3,7 +3,7 @@ import type { TurnState } from '@faceling/core/compositor';
 import { LiveDirector, LiveFace, type DirectorStats, type LiveFrame } from '@faceling/core/live';
 import { REGION_KEYS, regionSpec, topAction, type Region } from '@faceling/core/regions';
 import type { BodySpec } from '@faceling/core/body';
-import { ArmRig, DogRig, FACE_BODY, FacelingRig, RobotRig, VrmRig } from '@faceling/rigs';
+import { ArmRig, DogRig, FACE_BODY, FacelingRig, RobotRig, VrmRig, type Rig } from '@faceling/rigs';
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VARIANTS } from '@faceling/core/weights';
@@ -44,7 +44,7 @@ const AVATAR_INFO: Record<Avatar, { name: string; desc: string }> = {
 };
 const isAvatar = (value: string | null): value is Avatar => AVATARS.includes(value as Avatar);
 /** 그 캐릭터의 몸 명세. 리그가 선언한 것을 그대로 쓴다(3D 모델은 불러오기 전에도 얼굴 몸이다). */
-const bodyOf = (avatar: Avatar): BodySpec => (avatar === 'vrm' ? (vrmRig?.body ?? FACE_BODY) : ensureRig(avatar).body);
+const bodyOf = (avatar: Avatar): BodySpec => rigOf(avatar)?.body ?? FACE_BODY;
 
 /** 목소리 칩에 먼저 보여 줄 것. 나머지는 개발자 패널에서 고른다. */
 const FEATURED_VOICES = ['marin', 'cedar', 'coral', 'ash'];
@@ -96,10 +96,19 @@ const key = new THREE.DirectionalLight(0xffffff, 2.2);
 key.position.set(0.6, 1.2, 1.5);
 scene.add(key);
 
-/** 코드로 그린 얼굴들. 처음 고를 때 만든다. */
+/**
+ * 코드로 그린 캐릭터들. 처음 고를 때 만든다.
+ * 여기서 만들고 나면 화면은 리그의 종류를 가리지 않는다: 몸 명세, 카메라 위치, 프레임 입히기를 모두 공통 형태(Rig)로 다룬다.
+ */
 type DrawnAvatar = Exclude<Avatar, 'vrm'>;
-const DRAWN: DrawnAvatar[] = ['faceling', 'robot', 'dog', 'arm'];
-const rigs: { faceling?: FacelingRig; robot?: RobotRig; dog?: DogRig; arm?: ArmRig } = {};
+const MAKE: Record<DrawnAvatar, () => Rig> = {
+  faceling: () => new FacelingRig(),
+  robot: () => new RobotRig(),
+  dog: () => new DogRig(),
+  arm: () => new ArmRig(),
+};
+const DRAWN = Object.keys(MAKE) as DrawnAvatar[];
+const rigs: Partial<Record<DrawnAvatar, Rig>> = {};
 
 /**
  * 3D 얼굴(VRM). 직접 고른 파일이 없으면 three-vrm 의 예제 모델을 실행 중에 불러온다.
@@ -154,31 +163,30 @@ function showModelInfo(label: string): void {
   $('model-info').textContent = `${name}${author ? ` (${author})` : ''}. ${ability}`;
 }
 
-function ensureRig(which: DrawnAvatar): FacelingRig | RobotRig | DogRig | ArmRig {
-  if (which === 'arm') return rigs.arm ?? (scene.add((rigs.arm = new ArmRig()).object), rigs.arm);
-  if (which === 'faceling') return rigs.faceling ?? (scene.add((rigs.faceling = new FacelingRig()).object), rigs.faceling);
-  if (which === 'robot') return rigs.robot ?? (scene.add((rigs.robot = new RobotRig()).object), rigs.robot);
-  return rigs.dog ?? (scene.add((rigs.dog = new DogRig()).object), rigs.dog);
+function ensureRig(which: DrawnAvatar): Rig {
+  let rig = rigs[which];
+  if (!rig) {
+    rig = rigs[which] = MAKE[which]();
+    scene.add(rig.object);
+  }
+  return rig;
 }
 
-/** 그 얼굴만 보이게 하고 카메라를 맞춘다 */
+/** 그 캐릭터의 리그. 3D 모델은 다 불러오기 전이면 없다. */
+const rigOf = (avatar: Avatar): Rig | null => (avatar === 'vrm' ? vrmRig : ensureRig(avatar));
+
+/** 그 캐릭터만 보이게 하고 카메라를 맞춘다 */
 function frameAvatar(which: Avatar): void {
-  if (which === 'vrm') {
-    if (vrm) {
-      const head = new THREE.Vector3();
-      vrm.humanoid.getNormalizedBoneNode('head')?.getWorldPosition(head);
-      camera.position.set(head.x, head.y + 0.04, head.z + 1.15);
-      camera.lookAt(head.x, head.y + 0.02, head.z);
-    }
-  } else {
-    const rig = ensureRig(which);
-    const c = rig.headCenter;
-    const distance = rig instanceof ArmRig ? rig.viewDistance : 1.35;
-    camera.position.set(c.x, c.y + (which === 'robot' ? 0.02 : 0), c.z + distance);
-    camera.lookAt(c.x, c.y - (which === 'robot' ? 0.03 : 0), c.z);
+  const rig = rigOf(which);
+  if (rig) {
+    camera.position.copy(rig.view.position);
+    camera.lookAt(rig.view.target);
   }
-  for (const drawn of DRAWN) if (rigs[drawn]) rigs[drawn].object.visible = which === drawn;
-  if (vrm) vrm.scene.visible = which === 'vrm';
+  for (const drawn of DRAWN) {
+    const other = rigs[drawn];
+    if (other) other.object.visible = which === drawn;
+  }
+  if (vrmRig) vrmRig.object.visible = which === 'vrm';
 }
 
 function showAvatar(next: Avatar): void {
@@ -787,14 +795,9 @@ function tick(): void {
   const frame = face.update(now, mouth);
   lastFrame = frame;
   const dt = frameClock.getDelta();
-  if (state.avatar === 'vrm') {
-    vrmRig?.apply(frame);
-    // 머리카락과 옷의 흔들림(스프링 본)도 여기서 움직인다
-    vrm?.update(dt);
-  } else {
-    rigs[state.avatar]?.apply(frame);
-    if (state.avatar === 'robot') rigs.robot?.setLamp(frame.shapes.jawOpen ?? 0);
-  }
+  const rig = rigOf(state.avatar);
+  rig?.apply(frame);
+  rig?.update?.(dt);
   renderer.render(scene, camera);
   showDebug(frame);
   showAction(frame, now);

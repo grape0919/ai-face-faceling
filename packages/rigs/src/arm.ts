@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { Expression } from '@faceling/core/compositor';
+import { bodyFeelings } from '@faceling/core/feelings';
 import { ARM_BODY } from './bodies.js';
+import type { Rig } from './rig.js';
 
 /**
  * 얼굴이 없는 작업대 로봇팔. 받침, 회전대, 어깨, 팔꿈치, 손목, 집게로 되어 있다.
@@ -54,46 +56,6 @@ const clamp = (v: number, lo = 0, hi = 1): number => Math.min(hi, Math.max(lo, v
 
 type Joints = typeof REST;
 
-/** 좌우가 있는 동작은 양쪽을 더한다 */
-const w = (e: Expression, key: string): number => (e.weights[key] ?? 0) + (e.weights[`${key}@L`] ?? 0) + (e.weights[`${key}@R`] ?? 0);
-/** 좌우가 있는 동작이 어느 쪽으로 치우쳤는지. 왼쪽 +, 오른쪽 - */
-const side = (e: Expression, key: string): number => (e.weights[`${key}@L`] ?? 0) - (e.weights[`${key}@R`] ?? 0);
-
-/**
- * 표현 → 감정 몸짓의 세기. 판단 결과의 이름은 얼굴 부위지만, 여기서는 그 뜻만 읽는다.
- * 계수는 초안이며, 화면을 보면서 고친다.
- */
-export function bodyFeelings(e: Expression) {
-  const happy = clamp(Math.max(w(e, 'mouth.smile'), w(e, 'mouth.grin') * 1.1, w(e, 'cheeks.raised'), w(e, 'eyes.smiling')));
-  const excited = clamp(happy * (w(e, 'brows.raised') * 0.8 + w(e, 'mouth.grin') * 0.8 + w(e, 'eyes.wide') * 0.5));
-  const sad = clamp(
-    Math.max(w(e, 'brows.inner_up'), w(e, 'mouth.frown'), w(e, 'mouth.pout') * 0.6) * (1 - 0.6 * happy) +
-      w(e, 'gaze.down') * 0.35 +
-      w(e, 'head.lowered') * 0.5 +
-      w(e, 'eyes.soft') * 0.2,
-  );
-  const surprised = clamp(Math.max(w(e, 'eyes.wide'), w(e, 'mouth.open') * 0.8) * (1 - 0.5 * happy));
-  const tense = clamp(
-    Math.max(w(e, 'brows.lowered'), w(e, 'eyes.narrowed'), w(e, 'mouth.pressed'), w(e, 'mouth.tense'), w(e, 'mouth.firm'), w(e, 'cheeks.nose_wrinkled')),
-  );
-  // 고개 기울임은 좌우 구분이 없으므로 기본 방향을 쓰고, 한쪽 눈썹·비뚤어진 입은 그쪽으로 기울인다
-  const tiltSide = side(e, 'brows.one_raised') + side(e, 'mouth.skewed') + side(e, 'mouth.smirk');
-  const tilt = clamp(w(e, 'head.tilt') + w(e, 'brows.one_raised') * 0.7 + w(e, 'mouth.skewed') * 0.5 + w(e, 'mouth.smirk') * 0.4);
-  const playful = clamp(w(e, 'mouth.tongue_out') + w(e, 'cheeks.puffed') * 0.6);
-  return {
-    happy,
-    excited,
-    sad,
-    surprised,
-    tense,
-    tilt: tilt * (tiltSide < -0.05 ? -1 : 1),
-    lookAside: w(e, 'gaze.aside'),
-    lookUp: w(e, 'gaze.up') + w(e, 'head.raised') * 0.5,
-    lookDown: w(e, 'gaze.down'),
-    playful,
-  };
-}
-
 /**
  * 일부러 하는 움직임(move 부위의 판단)을 팔로 옮긴 자세. 쉬는 자세에서 얼마나 움직이는지가 아니라 도착할 자세 자체다.
  * 여기 있는 이름이 ARM_BODY.moves 에 선언한 것과 같아야 한다(home 은 붙잡은 자세를 푸는 것이라 자세가 없다).
@@ -127,7 +89,7 @@ function commandPose(e: Expression, t: number): { weight: number; pose: Joints }
   return { weight, pose: best ? COMMANDS[best]!(t) : { ...REST } };
 }
 
-export class ArmRig {
+export class ArmRig implements Rig {
   readonly mode = 'arm' as const;
   /** 이 몸이 할 수 있는 움직임. LiveDirector.body 에 넣으면 판단에 팔 동작 질문이 함께 간다. */
   readonly body = ARM_BODY;
@@ -136,6 +98,11 @@ export class ArmRig {
   readonly headCenter = new THREE.Vector3(0.04, 1.46, 0.08);
   /** 팔을 가장 높이 든 자세까지 들어오는 카메라 거리 */
   readonly viewDistance = 2.45;
+
+  get view(): { position: THREE.Vector3; target: THREE.Vector3 } {
+    const c = this.headCenter;
+    return { position: new THREE.Vector3(c.x, c.y, c.z + this.viewDistance), target: c.clone() };
+  }
 
   private readonly turret = new THREE.Group();
   private readonly shoulder = new THREE.Group();

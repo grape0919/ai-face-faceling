@@ -159,7 +159,9 @@ renderer.setAnimationLoop(() => {
 });
 ```
 
-내 몸을 움직이려면 `frame.expression` 을 같은 식으로 읽는다. 옮기기 편하도록 `@faceling/rigs` 의 `bodyFeelings(expression)` 가 동작들을 몇 가지 느낌(`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`)으로 묶어 준다. 계수는 초안이다.
+내 몸을 움직이려면 `frame.expression` 을 같은 식으로 읽는다. 옮기기 편하도록 `@faceling/core` 의 `bodyFeelings(expression)` 가 동작들을 몇 가지 느낌(`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`)으로 묶어 준다. 계수는 초안이다.
+
+`@faceling/rigs` 의 리그는 모두 같은 형태 `Rig` 다: `body` (할 수 있는 것), `object` (장면에 넣을 물체), `view` (카메라를 둘 곳), `apply(frame)`, 그리고 있으면 `update(dt)`. 예제는 얼굴, 로봇팔, VRM 모델을 이 형태 하나로 다루고, 몸의 종류에 따른 분기가 없다. 내 몸도 이 형태로 만들면 그대로 끼워 넣을 수 있다.
 
 #### 부탁한 동작 하기
 

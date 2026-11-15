@@ -159,7 +159,9 @@ renderer.setAnimationLoop(() => {
 });
 ```
 
-To drive your own body, read `frame.expression` the same way. `bodyFeelings(expression)` from `@faceling/rigs` condenses the actions into a few feelings (`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`) if that is easier to map. Its coefficients are a first draft.
+To drive your own body, read `frame.expression` the same way. `bodyFeelings(expression)` from `@faceling/core` condenses the actions into a few feelings (`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`) if that is easier to map. Its coefficients are a first draft.
+
+Every rig in `@faceling/rigs` has the same shape, `Rig`: `body` (what it can do), `object` (what to add to the scene), `view` (where to put the camera), `apply(frame)` and an optional `update(dt)`. The demo treats faces, the arm and VRM models through that one shape, with no branch per kind of body. Write your own body to it and it drops in the same way.
 
 #### Doing what it is asked
 

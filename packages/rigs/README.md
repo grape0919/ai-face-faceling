@@ -1,6 +1,6 @@
 # @faceling/rigs
 
-Ready-made three.js characters for [Faceling](https://github.com/grape0919/ai-face-faceling/blob/main/README.md). Each one takes a frame from `LiveFace.update()` through `apply(frame)`. The faces read its ARKit 52 values; the robot arm reads its body-independent `expression`.
+Ready-made three.js characters for [Faceling](https://github.com/grape0919/ai-face-faceling/blob/main/README.md). They all share one shape, `Rig`: `body` (what the body can do), `object` (add it to your scene), `view` (a camera position and target that frame it), `apply(frame)` for each frame from `LiveFace.update()`, and an optional `update(dt)`. The faces read the frame's ARKit 52 values; the robot arm reads its body-independent `expression`.
 
 | Class | Character |
 |---|---|

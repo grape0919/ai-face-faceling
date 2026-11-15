@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
 import { FACE_BODY } from './bodies.js';
+import type { Rig } from './rig.js';
 
 /**
  * 코드로 그린 로봇 얼굴. 머리는 3D 도형이고, 얼굴은 머리 앞면의 화면에 2D 로 그린다.
@@ -38,7 +39,7 @@ type Side = 'Left' | 'Right';
 /** 화면 x 방향. 캐릭터의 왼쪽은 화면 오른쪽(+x). */
 const dir = (side: Side): number => (side === 'Left' ? 1 : -1);
 
-export class RobotRig {
+export class RobotRig implements Rig {
   readonly mode = 'robot' as const;
   /** 이 몸이 할 수 있는 움직임. LiveDirector.body 에 넣는다. */
   readonly body = FACE_BODY;
@@ -46,6 +47,12 @@ export class RobotRig {
   readonly object = new THREE.Group();
   /** 카메라가 바라볼 머리 중심 */
   readonly headCenter = new THREE.Vector3(0, 1.45, 0);
+
+  /** 머리와 안테나가 함께 들어오는 카메라 위치 */
+  get view(): { position: THREE.Vector3; target: THREE.Vector3 } {
+    const c = this.headCenter;
+    return { position: new THREE.Vector3(c.x, c.y + 0.02, c.z + 1.35), target: new THREE.Vector3(c.x, c.y - 0.03, c.z) };
+  }
 
   private readonly head = new THREE.Group();
   private readonly canvas = document.createElement('canvas');
@@ -111,6 +118,8 @@ export class RobotRig {
     this.head.rotation.set(pose.head.pitch * 1.4, pose.head.yaw * 1.4, pose.head.roll * 1.4);
     this.draw();
     this.texture.needsUpdate = true;
+    // 말하는 정도에 따라 안테나 불빛이 밝아진다
+    this.setLamp(pose.shapes.jawOpen ?? 0);
   }
 
   dispose(): void {
