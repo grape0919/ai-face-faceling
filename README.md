@@ -18,6 +18,10 @@ Faceling is an expression engine for voice AI. It reads the **text** of the conv
 - **Not only faces.** Under the ARKit values sits a body-independent expression frame. A faceless workbench robot arm is included: from the very same judgment it slumps when it is sorry, perks up when it is glad, flinches when surprised and tilts its wrist when puzzled.
 - **Lightweight.** No server-side video. Each clause costs one API call of about 0.2–0.3 s.
 
+## See it move
+
+**[Open the recorded demo](https://grape0919.github.io/ai-face-faceling/)** — no install, no keys. It replays a sample conversation with expression judgments recorded from the real judgment model, so you can watch the face, the dog and the faceless robot arm react to the same talk. There is no sound, and nothing you do there is sent to a server. To talk to it yourself, run it locally as described below.
+
 ## Try it
 
 Requires Node.js 22 or later.
@@ -37,7 +41,7 @@ Copy `.env.example` in the repository root to `.env` and fill in the keys.
 npm run rt:dev
 ```
 
-Open http://localhost:5174. A three-step intro asks you to pick a face and a voice, then press "마이크 허용하고 대화 시작" (allow microphone and start) or "텍스트로만 대화할게요" (text only). Without an OpenAI key you get "예시 대화 보기" (watch a sample conversation) instead, which drives the face without sound. Press `` ` `` or add `?dev` to the URL to open the developer panel. The demo UI is in Korean for now.
+Open http://localhost:5174. A three-step intro asks you to pick a character and a voice, then press "Allow microphone and start" or "Text only, please". Without an OpenAI key you get "Play the sample conversation" instead, which drives the face without sound. Press `` ` `` or add `?dev` to the URL to open the developer panel. The page comes in English and Korean: use the language button at the top right, or add `?lang=en` / `?lang=ko` to the URL. The AI speaks the page's language from the next conversation on.
 
 Pick a face in the intro or later with "캐릭터 변경" (change character): 페이스링 (the Faceling face, the default), 로봇 (robot), 강아지 (dog), 로봇팔 (robot arm, no face) and 3D 모델 (3D model). The 3D option loads pixiv's sample model [VRM1_Constraint_Twist_Sample](https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models) (© 2022 pixiv Inc., [VRM Public License 1.0](https://vrm.dev/licenses/1.0/)) from the web at runtime; it is not included in this repository. That model only has the standard VRM expressions (happy, sad, surprised and so on), so its face looks simpler than the robot and dog. Load your own VRM with ARKit blendshapes from the developer panel → "내 VRM 불러오기" (load my VRM) to see every expression.
 

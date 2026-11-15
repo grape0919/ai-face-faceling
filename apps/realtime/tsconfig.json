@@ -23,6 +23,8 @@
   },
   "include": [
     "src",
-    "server.ts"
+    "scripts",
+    "server.ts",
+    "vite.config.ts"
   ]
 }

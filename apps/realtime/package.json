@@ -6,6 +6,8 @@
   "description": "OpenAI Realtime API 음성 대화에 실시간 표정을 붙이는 예제",
   "scripts": {
     "dev": "tsx --conditions=faceling-source server.ts",
+    "record": "tsx --conditions=faceling-source scripts/record.ts",
+    "build:pages": "vite build --mode pages",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

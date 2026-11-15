@@ -1,6 +1,7 @@
 import { charCount } from '@faceling/core/clauses';
 import type { MouthFeatures } from '@faceling/core/compositor';
 import type { LiveDirector } from '@faceling/core/live';
+import { ARM_BODY } from '@faceling/rigs/bodies';
 
 /**
  * OpenAI 연결 없이 실시간 경로를 돌려 보는 모의 대화.
@@ -13,8 +14,9 @@ export interface SimLine {
   text: string;
 }
 
-/** 가정: 글자당 재생 시간(초), 문장부호 뒤 쉼, 텍스트가 소리보다 얼마나 빨리 도착하는지 */
-const SECONDS_PER_CHAR = 0.17;
+/** 가정: 글자당 재생 시간(초. 한글은 한 글자가 한 음절이라 로마자보다 길다), 문장부호 뒤 쉼, 텍스트가 소리보다 얼마나 빨리 도착하는지 */
+const SECONDS_PER_HANGUL = 0.17;
+const SECONDS_PER_LETTER = 0.07;
 const TEXT_CHUNK = 6;
 const TEXT_INTERVAL_MS = 45;
 const AUDIO_DELAY_MS = 350;
@@ -23,7 +25,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 
 const spokenSeconds = (text: string): number => {
   const pauses = (text.match(/[.?!…]/g) ?? []).length * 0.3 + (text.match(/[,;:]/g) ?? []).length * 0.14;
-  return charCount(text) * SECONDS_PER_CHAR + pauses;
+  return charCount(text) * (/[가-힣]/.test(text) ? SECONDS_PER_HANGUL : SECONDS_PER_LETTER) + pauses;
 };
 
 export class Simulation {
@@ -126,12 +128,69 @@ export class Simulation {
   }
 }
 
-export const DEMO_LINES: SimLine[] = [
-  { speaker: 'assistant', text: '안녕하세요! 오늘 하루는 어떠셨어요?' },
-  { speaker: 'user', text: '사실 오늘 좀 힘들었어요. 지난주에 본 면접에서 떨어졌다는 연락을 받았거든요.' },
-  { speaker: 'assistant', text: '아, 그러셨군요. 많이 속상하셨겠어요. 준비도 오래 하셨을 텐데, 마음이 많이 무거우시죠?' },
-  { speaker: 'user', text: '네, 그런데 방금 다른 회사에서 최종 합격했다는 메일이 왔어요!' },
-  { speaker: 'assistant', text: '정말요? 와, 축하드려요! 그동안 고생하신 보람이 있네요. 어느 회사인지 여쭤봐도 될까요?' },
-  { speaker: 'user', text: '서울에 있는 회사인데, 출근은 다음 달 첫 주부터예요.' },
-  { speaker: 'assistant', text: '그렇군요. 다음 달 첫 주면 준비할 시간이 삼 주 정도 있네요. 필요한 서류는 미리 챙겨 두시면 좋아요.' },
-];
+const say = (speaker: SimLine['speaker'], text: string): SimLine => ({ speaker, text });
+
+/** 감정이 오르내리는 대화. 어느 몸이든 같다. */
+const STORY: Record<'ko' | 'en', SimLine[]> = {
+  ko: [
+    say('assistant', '안녕하세요! 오늘 하루는 어떠셨어요?'),
+    say('user', '사실 오늘 좀 힘들었어요. 지난주에 본 면접에서 떨어졌다는 연락을 받았거든요.'),
+    say('assistant', '아, 그러셨군요. 많이 속상하셨겠어요. 준비도 오래 하셨을 텐데, 마음이 많이 무거우시죠?'),
+    say('user', '네, 그런데 방금 다른 회사에서 최종 합격했다는 메일이 왔어요!'),
+    say('assistant', '정말요? 와, 축하드려요! 그동안 고생하신 보람이 있네요. 어느 회사인지 여쭤봐도 될까요?'),
+    say('user', '서울에 있는 회사인데, 출근은 다음 달 첫 주부터예요.'),
+    say('assistant', '그렇군요. 다음 달 첫 주면 준비할 시간이 삼 주 정도 있네요. 필요한 서류는 미리 챙겨 두시면 좋아요.'),
+  ],
+  en: [
+    say('assistant', 'Hi there! How has your day been?'),
+    say('user', 'Honestly, it was rough. I heard back about the interview I did last week, and I did not get the job.'),
+    say('assistant', 'Oh, I am so sorry to hear that. That must have been really disappointing. You put so much into preparing, did you not?'),
+    say('user', 'I did. But just now I got an email saying another company wants to hire me!'),
+    say('assistant', 'Really? Wow, congratulations! All that hard work paid off. Can I ask which company it is?'),
+    say('user', 'It is a company in Seoul, and I start the first week of next month.'),
+    say('assistant', 'I see. That gives you about three weeks to get ready. It is a good idea to gather the paperwork you need ahead of time.'),
+  ],
+};
+
+/** 시키는 대로 움직여 보이는 대목. 몸이 할 수 있는 것이 달라서 얼굴과 팔의 대사가 다르다. */
+const FACE_MOVES: Record<'ko' | 'en', SimLine[]> = {
+  ko: [
+    say('user', '축하하는 뜻으로 윙크 한번 해 줄래요?'),
+    say('assistant', '좋아요, 찡긋!'),
+    say('user', '이번에는 오른쪽을 봐 주세요.'),
+    say('assistant', '네, 오른쪽으로 휙!'),
+    say('user', '이제 다시 앞을 봐요.'),
+    say('assistant', '네, 다시 정면!'),
+  ],
+  en: [
+    say('user', 'Could you give me a wink to celebrate?'),
+    say('assistant', 'Sure thing, wink!'),
+    say('user', 'Now look to the right for me.'),
+    say('assistant', 'Okay, turning to the right!'),
+    say('user', 'And look straight ahead again.'),
+    say('assistant', 'Okay, back to the front!'),
+  ],
+};
+const ARM_MOVES: Record<'ko' | 'en', SimLine[]> = {
+  ko: [
+    say('user', '축하하는 뜻으로 손 한번 흔들어 줄래요?'),
+    say('assistant', '좋아요, 흔들흔들! 축하해요!'),
+    say('user', '이번에는 팔을 오른쪽으로 뻗어 봐요.'),
+    say('assistant', '네, 오른쪽으로 쭉!'),
+    say('user', '이제 제자리로 돌아와요.'),
+    say('assistant', '네, 제자리로!'),
+  ],
+  en: [
+    say('user', 'Could you give me a wave to celebrate?'),
+    say('assistant', 'Sure thing, waving! Congratulations!'),
+    say('user', 'Now reach your arm out to the right.'),
+    say('assistant', 'Okay, reaching to the right!'),
+    say('user', 'And come back to where you started.'),
+    say('assistant', 'Okay, back home!'),
+  ],
+};
+
+/** 그 언어와 몸(BodySpec 의 name)에 맞는 예시 대화 */
+export function demoLines(lang: 'ko' | 'en', body: string): SimLine[] {
+  return [...STORY[lang], ...(body === ARM_BODY.name ? ARM_MOVES : FACE_MOVES)[lang]];
+}
