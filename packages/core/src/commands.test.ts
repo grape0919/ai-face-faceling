@@ -205,6 +205,26 @@ describe('LiveDirector 의 몸', () => {
     expect(after[after.length - 1]).toBeLessThan(0.05);
   });
 
+  it('부탁받은 고개 돌리기는 머리를 그쪽으로 크게 돌리고 말이 끝난 뒤에도 남는다', async () => {
+    const h = run(['turn'], j({ turn: 'right' }));
+    await h.speak('네, 오른쪽으로 휙!');
+    expect(h.asked.every((i) => i.parts?.includes('turn'))).toBe(true);
+    sweep(h, 0, 1.6, () => 0);
+    h.stop(1.6);
+    // yaw 양수는 보는 사람에게 화면 오른쪽이다
+    const yaw = [];
+    for (let t = 1.6; t <= 12; t += 1 / 30) yaw.push(h.at(t).head.yaw);
+    expect(yaw[Math.round((4 - 1.6) * 30)]).toBeGreaterThan(0.35);
+    expect(Math.abs(yaw[yaw.length - 1] as number)).toBeLessThan(0.08);
+  });
+
+  it('고개를 위로 들면 숙임과 반대 방향이다', async () => {
+    const h = run(['turn'], j({ turn: 'up' }));
+    await h.speak('네, 위로 번쩍 들었어요!');
+    sweep(h, 0, 1.5, () => 0);
+    expect(h.at(1.5).head.pitch).toBeLessThan(-0.2);
+  });
+
   it('새 팔 동작은 앞의 자세를 대신한다', async () => {
     const h = run(['arm'], (i) => (i.current.includes('왼쪽') ? j({ arm: 'left' }) : j({ arm: 'right' })));
     await h.speak('네, 오른쪽으로 쭉!');

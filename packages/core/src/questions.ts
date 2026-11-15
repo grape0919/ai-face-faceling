@@ -7,7 +7,7 @@ import type { AnalyzerInput } from './judgment.js';
  * 부위와 선택지는 shared/regions.ts 에 있다. Jev 와 LLM 대조군이 같은 문구를 쓴다.
  * 문구나 선택지를 바꾸면 QUESTIONS_VERSION 을 올린다.
  */
-export const QUESTIONS_VERSION = 'r6';
+export const QUESTIONS_VERSION = 'r7';
 
 export type Role = 'speaking' | 'listening';
 export const ROLES: Role[] = ['speaking', 'listening'];

@@ -182,8 +182,8 @@ function frameAvatar(which: Avatar): void {
 
 function showAvatar(next: Avatar): void {
   state.avatar = next;
-  // 팔이 있는 몸이면 판단에 팔 동작 질문을 함께 보낸다
-  director.parts = next === 'arm' ? ['arm'] : [];
+  // 몸에 따라 부탁받은 동작의 질문이 다르다: 로봇팔은 팔 동작, 얼굴 캐릭터는 고개 돌리기
+  director.parts = next === 'arm' ? ['arm'] : ['turn'];
   if (next === 'vrm' && !vrm && !vrmLoading) {
     vrmLoading = loadVrm(SAMPLE_VRM, 'three-vrm 예제 모델')
       .then(() => {
@@ -735,7 +735,7 @@ function showDebug(frame: LiveFrame): void {
  * 편안·정면처럼 아무것도 안 하는 동작은 빼고, "올림"처럼 부위 없이는 뜻이 모호한 것은 부위 이름을 붙인다.
  */
 const RESTING = new Set(['편안', '정면', '그대로']);
-const NEEDS_REGION = new Set(['눈썹', '눈', '시선', '팔']);
+const NEEDS_REGION = new Set(['눈썹', '눈', '시선', '팔', '고개']);
 function strongestAction(frame: LiveFrame): string {
   let best = { label: '', w: 0.2 };
   for (const v of VARIANTS) {

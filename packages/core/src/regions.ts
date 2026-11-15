@@ -269,6 +269,38 @@ export const REGIONS = {
     },
   },
   /**
+   * 고개 돌리기. 감정이 아니라 AI 가 실제로 하는 고개 동작을 묻는다("고개 들어 봐" → "네, 위로!").
+   * 머리가 있는 얼굴 캐릭터에서만 묻는다. 감정에서 나오는 끄덕임, 갸웃, 숙임은 head 부위의 판단에서 따로 나온다.
+   * 방향은 보는 사람 기준이다: right 는 화면 오른쪽.
+   */
+  turn: {
+    label: '고개',
+    subject: "the assistant's head direction",
+    rest: 'rest',
+    optional: true,
+    prompt:
+      'The assistant has a face shown on a screen and can move its head when asked. Which way should the head deliberately turn while the assistant says `current`? ' +
+      'Pick a direction only when the assistant is actually doing it right now or says it has just done it, for example because the user asked ' +
+      '("lift your head", "turn your face to the right") and it agrees. Left and right are as the user sees them on the screen. ' +
+      'Otherwise pick rest; feelings are shown separately.',
+    actions: {
+      rest: {
+        label: '그대로',
+        desc: 'No deliberate head turn. Includes ordinary talk, talking about directions without turning, refusing, or saying it cannot.',
+        listen: 'Listening.',
+      },
+      up: { label: '위', desc: 'Lifting the head or looking up on purpose right now.', listen: false },
+      down: { label: '아래', desc: 'Lowering the head or looking down on purpose right now.', listen: false },
+      left: { label: '왼쪽', desc: 'Turning the head or face to the left right now.', listen: false },
+      right: { label: '오른쪽', desc: 'Turning the head or face to the right right now.', listen: false },
+      home: {
+        label: '정면',
+        desc: 'Turning back to face the user straight on right now because it was asked to or says so: "facing you again", "back to the front".',
+        listen: false,
+      },
+    },
+  },
+  /**
    * 로봇팔. 감정이 아니라 AI 가 실제로 하는 팔 동작을 묻는다("오른쪽으로 쭉!", "안녕히 가세요!").
    * 팔이 있는 캐릭터에서만 묻는다. 감정 몸짓(처짐, 들림)은 다른 부위의 판단에서 따로 나온다.
    */
