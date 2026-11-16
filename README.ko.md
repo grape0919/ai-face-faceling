@@ -20,7 +20,9 @@ Faceling 은 AI 가 하는 말과 사용자가 하는 말의 **텍스트**를 �
 
 ## 움직이는 모습 보기
 
-**[녹화 데모 열기](https://grape0919.github.io/ai-face-faceling/)** — 설치도 키도 필요 없다. 실제 판단 모델에서 받아 둔 표정 판단으로 예시 대화를 재생해, 같은 대화에 얼굴과 강아지, 얼굴 없는 로봇팔이 어떻게 반응하는지 볼 수 있다. 소리는 나지 않고, 그 페이지에서 한 일은 서버로 가지 않는다. 직접 말을 걸어 보려면 아래대로 내 PC 에서 실행한다.
+**[데모 열기](https://grape0919.github.io/ai-face-faceling/)** — 설치도 키도 필요 없다. 실제 판단 모델에서 받아 둔 표정 판단으로 예시 대화를 재생해, 같은 대화에 얼굴과 강아지, 얼굴 없는 로봇팔이 어떻게 반응하는지 볼 수 있다. 재생에는 소리가 없고, 그 페이지에서 한 일은 서버로 가지 않는다.
+
+그 페이지에서 바로 말을 걸어 보려면 "API 키"에 내 OpenAI 키를 넣는다. 페이지에는 서버가 없어서 브라우저가 내 키로 OpenAI 에 직접 붙고, 표정 판단도 OpenAI 모델이 한다(Jev 는 브라우저에서 부를 수 없다). Jev 보다 느리므로 제대로 보려면 아래대로 내 PC 에서 실행한다.
 
 ## 바로 해 보기
 
@@ -34,8 +36,10 @@ npm install
 
 | 키 | 용도 |
 |---|---|
-| `TYPESAFE_API_KEY` | 표정 판단([Jev](https://docs.typesafe.ai/introduction)). 필수 |
+| `TYPESAFE_API_KEY` | 표정 판단([Jev](https://docs.typesafe.ai/introduction)). 없으면 `OPENAI_API_KEY` 로 OpenAI 모델이 대신 판단한다(느리다: 절 하나에 약 1.1초, Jev 는 0.2~0.3초) |
 | `OPENAI_API_KEY` | 음성 대화(OpenAI Realtime API). 없으면 소리 없는 모의 대화만 된다 |
+
+`.env` 대신 데모 화면의 "API 키"에 내 키를 넣어도 된다. 키는 브라우저에만 저장되고 내 PC 의 서버로만 보내진다.
 
 ```bash
 npm run rt:dev

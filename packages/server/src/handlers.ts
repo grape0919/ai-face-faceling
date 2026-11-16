@@ -1,4 +1,5 @@
 import { createJevAnalyzer } from '@faceling/core/analyzers/jev';
+import { createOpenAIAnalyzer } from '@faceling/core/analyzers/openai';
 import type { Analyzer, AnalyzerInput, Judgment } from '@faceling/core/judgment';
 import type { BodySpec } from '@faceling/core/body';
 
@@ -11,6 +12,8 @@ export type FetchHandler = (request: Request) => Promise<Response>;
 /** 요청 본문의 최대 크기(바이트). 판단 요청 하나는 이보다 훨씬 작다. */
 const MAX_BODY = 20_000;
 const OPENAI_CLIENT_SECRETS = 'https://api.openai.com/v1/realtime/client_secrets';
+/** 키마다 만들어 두는 분석기의 최대 개수 */
+const MAX_ANALYZERS = 16;
 
 export const DEFAULT_REALTIME_MODEL = 'gpt-realtime-2.1';
 export const DEFAULT_VOICE = 'marin';
@@ -19,7 +22,18 @@ export const DEFAULT_LIVE_TRANSCRIBE_MODEL = 'gpt-live-transcribe';
 /** 브라우저가 고를 수 있는 목소리. 이 밖의 이름이 오면 기본 목소리를 쓴다. */
 export const DEFAULT_VOICES = ['marin', 'cedar', 'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse'];
 
-const env = (name: string): string | undefined => process.env[name] || undefined;
+/** 환경 변수. 이 처리기들은 브라우저에서도 돌 수 있어(사용자가 자기 키를 넣는 정적 페이지), process 가 없으면 없는 것으로 본다. */
+const env = (name: string): string | undefined =>
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[name] || undefined;
+
+/**
+ * API 키를 주는 방법. 문자열이면 늘 그 키를 쓰고, 함수면 요청마다 불러 그 요청에 쓸 키를 정한다
+ * (예: 사용자가 화면에 넣은 자기 키를 헤더로 받는다). 함수가 빈 값을 돌려주면 환경 변수의 키를 쓴다.
+ */
+export type ApiKeySource = string | ((request: Request) => string | undefined);
+
+const resolveKey = (source: ApiKeySource | undefined, request: Request, envName: string): string | undefined =>
+  (typeof source === 'function' ? source(request) : source) || env(envName);
 
 const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), {
@@ -76,8 +90,8 @@ async function clientSecret(apiKey: string, session: Record<string, unknown>): P
 // ── 대화용 임시 키 ─────────────────────────────────────────
 
 export interface SessionHandlerOptions {
-  /** OpenAI API 키. 없으면 환경 변수 OPENAI_API_KEY. */
-  apiKey?: string;
+  /** OpenAI API 키, 또는 요청마다 키를 정하는 함수. 없으면 환경 변수 OPENAI_API_KEY. */
+  apiKey?: ApiKeySource;
   /** 대화 모델. 없으면 OPENAI_REALTIME_MODEL, 그것도 없으면 'gpt-realtime-2.1'. */
   model?: string;
   /** 기본 목소리. 없으면 OPENAI_REALTIME_VOICE, 그것도 없으면 'marin'. */
@@ -106,7 +120,7 @@ export interface SessionHandlerOptions {
  */
 export function createSessionHandler(options: SessionHandlerOptions = {}): FetchHandler {
   return postOnly(async (request) => {
-    const apiKey = options.apiKey || env('OPENAI_API_KEY');
+    const apiKey = resolveKey(options.apiKey, request, 'OPENAI_API_KEY');
     if (!apiKey) return json(400, { error: 'OPENAI_API_KEY 가 없습니다. 환경 변수나 apiKey 옵션으로 넘기세요.' });
     const model = options.model || env('OPENAI_REALTIME_MODEL') || DEFAULT_REALTIME_MODEL;
     const fallbackVoice = options.voice || env('OPENAI_REALTIME_VOICE') || DEFAULT_VOICE;
@@ -146,8 +160,8 @@ export function createSessionHandler(options: SessionHandlerOptions = {}): Fetch
 // ── 말하는 도중의 전사용 임시 키 ───────────────────────────
 
 export interface TranscriptionSessionHandlerOptions {
-  /** OpenAI API 키. 없으면 환경 변수 OPENAI_API_KEY. */
-  apiKey?: string;
+  /** OpenAI API 키, 또는 요청마다 키를 정하는 함수. 없으면 환경 변수 OPENAI_API_KEY. */
+  apiKey?: ApiKeySource;
   /** 말이 들어오는 대로 글자를 내보내는 전사 모델. 없으면 OPENAI_LIVE_TRANSCRIBE_MODEL, 그것도 없으면 'gpt-live-transcribe'. */
   model?: string;
   /** 사용자 말의 언어(ISO 639-1). 비우면 OpenAI 가 알아서 판단한다. */
@@ -159,8 +173,8 @@ export interface TranscriptionSessionHandlerOptions {
  * 이 연결이 있어야 사용자가 말을 마치기 전에 듣는 반응이 나온다. 없어도 대화는 된다.
  */
 export function createTranscriptionSessionHandler(options: TranscriptionSessionHandlerOptions = {}): FetchHandler {
-  return postOnly(async () => {
-    const apiKey = options.apiKey || env('OPENAI_API_KEY');
+  return postOnly(async (request) => {
+    const apiKey = resolveKey(options.apiKey, request, 'OPENAI_API_KEY');
     if (!apiKey) return json(400, { error: 'OPENAI_API_KEY 가 없습니다.' });
     const model = options.model || env('OPENAI_LIVE_TRANSCRIBE_MODEL') || DEFAULT_LIVE_TRANSCRIBE_MODEL;
     const secret = await clientSecret(apiKey, {
@@ -185,10 +199,17 @@ export function createTranscriptionSessionHandler(options: TranscriptionSessionH
 export interface JudgeHandlerOptions {
   /** 판단에 쓸 분석기. 없으면 Jev 분석기를 처음 요청 때 만든다. */
   analyzer?: Analyzer;
-  /** Jev 를 쓸 때의 TypeSafe API 키. 없으면 환경 변수 TYPESAFE_API_KEY. */
-  apiKey?: string;
+  /** Jev 를 쓸 때의 TypeSafe API 키, 또는 요청마다 키를 정하는 함수. 없으면 환경 변수 TYPESAFE_API_KEY. */
+  apiKey?: ApiKeySource;
   /** Jev 모델. 없으면 JEV_MODEL, 그것도 없으면 'jev-latest'. */
   model?: string;
+  /**
+   * Jev 키가 없을 때 대신 판단할 OpenAI 모델의 키, 또는 요청마다 키를 정하는 함수. 없으면 환경 변수 OPENAI_API_KEY.
+   * Jev 키가 있으면 늘 Jev 가 판단한다. OpenAI 모델은 같은 질문에 답하지만 Jev 보다 느리다.
+   */
+  openaiApiKey?: ApiKeySource;
+  /** 대신 판단할 OpenAI 모델. 없으면 OPENAI_JUDGE_MODEL, 그것도 없으면 @faceling/core 의 기본값. */
+  openaiModel?: string;
   /**
    * 판단에 쓸 수 있는 몸 명세들(예: @faceling/rigs 의 FACE_BODY, ARM_BODY). 브라우저가 본문의 body 로 이름을 보내면
    * 그 몸이 할 수 있는 움직임을 함께 묻는다. 없으면 감정 표현만 판단한다.
@@ -199,12 +220,27 @@ export interface JudgeHandlerOptions {
 }
 
 /**
- * 브라우저 대신 분석기(기본은 Jev)를 부른다(POST, 본문은 AnalyzerInput). 응답은 { judgment, ms }.
+ * 브라우저 대신 분석기를 부른다(POST, 본문은 AnalyzerInput). 응답은 { judgment, ms, analyzer }.
+ * 분석기는 Jev 이고, Jev 키가 없고 OpenAI 키가 있으면 OpenAI 모델이 대신한다(analyzer 가 'jev' 또는 'openai').
  * 브라우저 쪽은 @faceling/core 의 createRemoteJudge() 로 이 주소를 부른다.
  */
 export function createJudgeHandler(options: JudgeHandlerOptions = {}): FetchHandler {
-  let analyzer: Analyzer | null = options.analyzer ?? null;
-  const getAnalyzer = (): Analyzer => (analyzer ??= createJevAnalyzer({ apiKey: options.apiKey, model: options.model }));
+  // 분석기는 키마다 하나씩 만들어 둔다(질문 세트를 다시 만들지 않게). 요청마다 키가 달라도 끝없이 쌓이지 않게 개수를 묶는다.
+  const analyzers = new Map<string, Analyzer>();
+  const getAnalyzer = (request: Request): Analyzer => {
+    if (options.analyzer) return options.analyzer;
+    const jevKey = resolveKey(options.apiKey, request, 'TYPESAFE_API_KEY');
+    const openaiKey = jevKey ? undefined : resolveKey(options.openaiApiKey, request, 'OPENAI_API_KEY');
+    if (!jevKey && !openaiKey) throw new HttpError(400, '판단에 쓸 키가 없습니다. TYPESAFE_API_KEY(Jev) 나 OPENAI_API_KEY 를 환경 변수나 옵션으로 넘기세요.');
+    const id = jevKey ? `jev:${jevKey}` : `openai:${openaiKey}`;
+    let analyzer = analyzers.get(id);
+    if (!analyzer) {
+      if (analyzers.size >= MAX_ANALYZERS) analyzers.delete(analyzers.keys().next().value as string);
+      analyzer = jevKey ? createJevAnalyzer({ apiKey: jevKey, model: options.model }) : createOpenAIAnalyzer({ apiKey: openaiKey, model: options.openaiModel });
+      analyzers.set(id, analyzer);
+    }
+    return analyzer;
+  };
 
   return postOnly(async (request) => {
     const body = await readJson(request);
@@ -219,7 +255,8 @@ export function createJudgeHandler(options: JudgeHandlerOptions = {}): FetchHand
     };
     if (!input.current.trim()) return json(400, { error: 'current 가 비어 있습니다' });
     const started = performance.now();
-    const judgment = await getAnalyzer().analyze(input);
+    const analyzer = getAnalyzer(request);
+    const judgment = await analyzer.analyze(input);
     const ms = Math.round(performance.now() - started);
     if (options.onJudgment) {
       try {
@@ -228,7 +265,7 @@ export function createJudgeHandler(options: JudgeHandlerOptions = {}): FetchHand
         // 기록 실패는 무시한다
       }
     }
-    return json(200, { judgment, ms });
+    return json(200, { judgment, ms, analyzer: analyzer.name });
   });
 }
 

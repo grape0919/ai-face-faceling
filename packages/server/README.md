@@ -19,4 +19,4 @@ const api = toNodeHandler(createFacelingHandler({ session: { language: 'en' }, t
 createServer((req, res) => (req.url?.startsWith('/api/') ? void api(req, res) : res.writeHead(404).end())).listen(3000);
 ```
 
-Keys come from the `apiKey` options or the `OPENAI_API_KEY` and `TYPESAFE_API_KEY` environment variables. **There is no authentication.** Add your own before exposing these routes. MIT License.
+Keys come from the `apiKey` options or the `OPENAI_API_KEY` and `TYPESAFE_API_KEY` environment variables. `apiKey` may also be a function of the request, e.g. `(request) => request.headers.get('x-openai-key') ?? undefined`, to let each user bring their own key; when it returns nothing the environment variable is used. When there is no TypeSafe key, `createJudgeHandler` falls back to an OpenAI model (`openaiApiKey` option or `OPENAI_API_KEY`); it asks the same questions but is slower than Jev. **There is no authentication.** Add your own before exposing these routes. MIT License.

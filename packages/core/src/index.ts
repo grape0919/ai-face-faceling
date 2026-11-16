@@ -18,3 +18,4 @@ export * from './regions.js';
 export * from './remote.js';
 export * from './weights.js';
 export { createJevAnalyzer, type JevAnalyzerOptions } from './analyzers/jev.js';
+export { DEFAULT_OPENAI_JUDGE_MODEL, createOpenAIAnalyzer, type OpenAIAnalyzerOptions } from './analyzers/openai.js';

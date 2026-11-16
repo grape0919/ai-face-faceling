@@ -20,7 +20,9 @@ Faceling is an expression engine for voice AI. It reads the **text** of the conv
 
 ## See it move
 
-**[Open the recorded demo](https://grape0919.github.io/ai-face-faceling/)** — no install, no keys. It replays a sample conversation with expression judgments recorded from the real judgment model, so you can watch the face, the dog and the faceless robot arm react to the same talk. There is no sound, and nothing you do there is sent to a server. To talk to it yourself, run it locally as described below.
+**[Open the demo](https://grape0919.github.io/ai-face-faceling/)** — no install, no keys. It replays a sample conversation with expression judgments recorded from the real judgment model, so you can watch the face, the dog and the faceless robot arm react to the same talk. The replay has no sound, and nothing you do there is sent to a server.
+
+To talk to it right on that page, enter your own OpenAI key under "API keys". The page has no server: your browser connects straight to OpenAI with your key, and an OpenAI model also judges the expressions (Jev cannot be called from a browser). That is slower than Jev, so for the real thing run it locally as described below.
 
 ## Try it
 
@@ -34,8 +36,10 @@ Copy `.env.example` in the repository root to `.env` and fill in the keys.
 
 | Key | Used for |
 |---|---|
-| `TYPESAFE_API_KEY` | Expression judgment ([Jev](https://docs.typesafe.ai/introduction)). Required |
+| `TYPESAFE_API_KEY` | Expression judgment ([Jev](https://docs.typesafe.ai/introduction)). Without it, an OpenAI model judges instead using `OPENAI_API_KEY` (slower: about 1.1 s per clause against 0.2–0.3 s) |
 | `OPENAI_API_KEY` | Voice conversation (OpenAI Realtime API). Without it, only the silent demo works |
+
+You can also skip `.env` and enter your keys in the demo screen ("API keys"). They are kept in your browser and sent only to the server on your own PC.
 
 ```bash
 npm run rt:dev

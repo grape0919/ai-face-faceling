@@ -1,4 +1,5 @@
-import type { AnalyzerInput, Judgment } from '@faceling/core/judgment';
+import { createOpenAIAnalyzer } from '@faceling/core/analyzers/openai';
+import type { Analyzer, AnalyzerInput, Judgment } from '@faceling/core/judgment';
 import type { TurnState } from '@faceling/core/compositor';
 import { LiveDirector, LiveFace, type DirectorStats, type LiveFrame } from '@faceling/core/live';
 import { REGION_KEYS, regionSpec, topAction, type Region } from '@faceling/core/regions';
@@ -9,7 +10,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VARIANTS } from '@faceling/core/weights';
 import * as THREE from 'three';
 import { RealtimeConnection } from '@faceling/openai-realtime';
+import { DEFAULT_REALTIME_MODEL, DEFAULT_VOICE, DEFAULT_VOICES, createFacelingHandler } from '@faceling/server';
 import { initialLang, lang, setLang, t, type Lang } from './i18n';
+import { CHARACTERS, CHARACTERS_EN, INSTRUCTIONS, INSTRUCTIONS_EN } from './persona';
 import { findRecorded, type Recordings } from './recorded';
 import { Simulation, demoLines, type SimLine } from './simulate';
 
@@ -32,16 +35,45 @@ const store = {
       // 저장하지 못해도 이번 방문에서는 그대로 쓴다
     }
   },
+  remove(key: string): void {
+    try {
+      localStorage.removeItem(`faceling.${key}`);
+    } catch {
+      // 지우지 못해도 이번 방문에서는 빈 값으로 쓴다
+    }
+  },
 };
 
 // 화면 언어. 다른 글을 만들기 전에 먼저 정한다.
 setLang(initialLang(params.get('lang'), store.get('lang')));
 
 /**
- * 정적 페이지 방식: 서버와 키 없이, 녹화해 둔 판단으로 예시 대화만 재생한다.
+ * 정적 페이지 방식: 서버가 없다. 기본은 녹화해 둔 판단으로 예시 대화만 재생하고,
+ * 사용자가 자기 OpenAI 키를 넣으면 브라우저가 OpenAI 에 직접 붙어 대화하고 판단도 OpenAI 모델에 묻는다.
  * GitHub Pages 용 빌드(vite build --mode pages)이거나 주소에 ?static 이 붙었을 때다.
  */
 const STATIC_PAGE = import.meta.env.MODE === 'pages' || params.has('static');
+
+/**
+ * 사용자가 화면에 넣은 자기 API 키. 이 브라우저에만 저장하고, 요청할 때 헤더로 내 PC 의 서버에 보낸다.
+ * 서버는 .env 의 키 대신 이 키를 쓴다. 비어 있으면 .env 의 키를 쓴다.
+ * 정적 페이지에는 서버가 없어, OpenAI 키를 브라우저에서 OpenAI 로 직접 보낸다(Jev 는 브라우저에서 부를 수 없다).
+ */
+const keys = { openai: store.get('key.openai') ?? '', jev: store.get('key.jev') ?? '' };
+const keyHeaders = (): Record<string, string> => ({
+  ...(keys.openai && { 'X-OpenAI-Key': keys.openai }),
+  ...(keys.jev && { 'X-TypeSafe-Key': keys.jev }),
+});
+/** 서버(.env)에 키가 있는지. 화면에 넣은 키와 합쳐 state.config 가 된다. */
+const serverKeys = { openai: false, jev: true };
+/** 정적 페이지에 키가 없어, 녹화된 예시 대화만 재생하는 상태인지 */
+const replayOnly = (): boolean => STATIC_PAGE && !keys.openai;
+/** 지금 표정 판단을 누가 하는지. Jev 키가 있으면 Jev, 없고 OpenAI 키가 있으면 OpenAI 모델이 대신한다. */
+function judgedBy(): 'jev' | 'openai' | 'recorded' | 'none' {
+  if (STATIC_PAGE) return keys.openai ? 'openai' : 'recorded';
+  if (serverKeys.jev || keys.jev) return 'jev';
+  return serverKeys.openai || keys.openai ? 'openai' : 'none';
+}
 
 // ── 얼굴 종류 ─────────────────────────────────────────────
 const AVATARS = ['faceling', 'robot', 'dog', 'arm', 'vrm'] as const;
@@ -248,16 +280,36 @@ let recordings: Promise<Recordings> | null = null;
 /** 녹화 당시 Jev 가 답하는 데 걸린 시간과 비슷하게 기다린다. 실제보다 빨라 보이지 않게 한다. */
 const RECORDED_DELAY_MS = 250;
 
-/** 절 하나의 판단을 서버를 거쳐 Jev 에 묻는다. 정적 페이지에서는 녹화에서 찾는다. */
+/** 녹화가 있는 예시 대화를 재생하는 중인지. 정적 페이지는 키가 있어도 이 대화만은 녹화로 재생한다. */
+let playingSample = false;
+
+/** 정적 페이지에서 사용자의 키로 OpenAI 모델에 직접 묻는 분석기. 키가 바뀌면 새로 만든다. */
+let browserAnalyzer: { key: string; analyzer: Analyzer } | null = null;
+async function judgeInBrowser(input: AnalyzerInput): Promise<Judgment> {
+  if (browserAnalyzer?.key !== keys.openai) browserAnalyzer = { key: keys.openai, analyzer: createOpenAIAnalyzer({ apiKey: keys.openai }) };
+  try {
+    return await browserAnalyzer.analyzer.analyze(input);
+  } catch (err) {
+    // 키가 틀리면 OpenAI 의 거절 응답을 브라우저가 읽지 못해 "Failed to fetch" 로만 나온다. 알아볼 수 있는 말로 바꾼다.
+    setNotice(err instanceof TypeError ? t('notice.openaiJudgeFailed') : err instanceof Error ? err.message.slice(0, 200) : t('notice.judgeFailed'));
+    throw err;
+  }
+}
+
+/**
+ * 절 하나의 판단을 서버를 거쳐 묻는다(Jev, 그 키가 없으면 OpenAI 모델).
+ * 정적 페이지에서는 녹화에서 찾고, 사용자가 키를 넣고 하는 대화는 OpenAI 모델에 직접 묻는다.
+ */
 async function judge(input: AnalyzerInput): Promise<Judgment> {
   if (STATIC_PAGE) {
+    if (keys.openai && !playingSample) return judgeInBrowser(input);
     recordings ??= fetch('./recordings.json').then((res) => res.json() as Promise<Recordings>);
     const [all] = await Promise.all([recordings, new Promise((r) => setTimeout(r, RECORDED_DELAY_MS))]);
     return findRecorded(all, input);
   }
   const res = await fetch('/api/judge', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...keyHeaders() },
     // 몸 명세는 이름만 보낸다. 설명은 서버가 가진 명세에서 나온다.
     body: JSON.stringify({ ...input, body: input.body?.name }),
   });
@@ -354,6 +406,24 @@ function clearConversation(): void {
 // ── 연결 ──────────────────────────────────────────────────
 /** 연결 옵션. 언어가 바뀌면 임시 키를 받는 주소와 인사 지시를 바꾼다(다음 연결부터 적용된다). */
 const connectionOptions: NonNullable<ConstructorParameters<typeof RealtimeConnection>[2]> = {};
+if (STATIC_PAGE) {
+  // 서버가 없으니 임시 키 발급을 브라우저 안에서 한다: 예제 서버와 같은 처리기를 사용자가 넣은 키로 돌린다.
+  const openaiKey = (): string => keys.openai;
+  const apis = {
+    ko: createFacelingHandler({
+      session: { instructions: INSTRUCTIONS, characters: CHARACTERS, language: 'ko', apiKey: openaiKey },
+      transcription: { language: 'ko', apiKey: openaiKey },
+    }),
+    en: createFacelingHandler({
+      session: { instructions: INSTRUCTIONS_EN, characters: CHARACTERS_EN, language: 'en', apiKey: openaiKey },
+      transcription: { language: 'en', apiKey: openaiKey },
+    }),
+  };
+  connectionOptions.fetch = (input, init) => {
+    const url = new URL(String(input), location.href);
+    return apis[url.searchParams.get('lang') === 'en' ? 'en' : 'ko'](new Request(url, init));
+  };
+}
 const connectionCallbacks: ConstructorParameters<typeof RealtimeConnection>[1] = {
   onStatus: setStatus,
   onCaption,
@@ -437,13 +507,16 @@ function endConversation(): void {
 }
 
 /** 예시 대화를 재생한다. 대사를 주지 않으면 지금 언어와 몸에 맞는 예시 대화다. */
-function runDemo(lines: SimLine[] = demoLines(lang(), bodyOf(state.avatar).name)): void {
+/** 예시 대화를 재생한다. custom 을 주면 그 문장들을 대신 말한다(녹화가 없으므로 실제로 판단을 묻는다). */
+function runDemo(custom?: SimLine[]): void {
   if (simulation.running || state.conn !== 'off') return;
+  playingSample = !custom;
   setNotice('');
   clearConversation();
   state.ended = false;
   setStatus(t('status.demoRunning'));
-  demo = simulation.run(lines).then(() => {
+  demo = simulation.run(custom ?? demoLines(lang(), bodyOf(state.avatar).name)).then(() => {
+    playingSample = false;
     setStatus(t('status.demoDone'));
     refresh();
   });
@@ -485,7 +558,7 @@ function captionHint(mode: Mode): string {
     case 'error':
       return t('hint.error');
     case 'off':
-      if (STATIC_PAGE) return t('hint.static');
+      if (replayOnly()) return t('hint.static');
       if (!state.config.openai) return t('hint.noOpenai');
       return state.ended ? t('hint.ended') : t('hint.off');
     default:
@@ -585,10 +658,15 @@ function renderOnboarding(): void {
   $('step-2-back').textContent = state.changing ? t('onb.cancel') : t('onb.back');
 
   const { openai, jev } = state.config;
-  $('step-3-title').textContent = STATIC_PAGE ? t('onb.staticTitle') : openai ? t('onb.voiceTitle') : t('onb.noKeyTitle');
-  $('step-3-desc').textContent = STATIC_PAGE ? t('onb.staticDesc') : openai ? t('onb.voiceDesc') : t('onb.noKeyDesc');
+  $('step-3-title').textContent = replayOnly() ? t('onb.staticTitle') : openai ? t('onb.voiceTitle') : t('onb.noKeyTitle');
+  $('step-3-desc').textContent = replayOnly() ? t('onb.staticDesc') : STATIC_PAGE ? t('onb.staticLiveDesc') : openai ? t('onb.voiceDesc') : t('onb.noKeyDesc');
   $('perm-mic').hidden = !openai;
-  $('perm-jev').hidden = jev;
+  // 표정 판단을 Jev 가 하지 않을 때만 알린다: OpenAI 모델이 대신하거나, 판단할 키가 아예 없거나
+  const by = judgedBy();
+  $('perm-jev').hidden = jev && by !== 'openai';
+  $('perm-jev-dot').classList.toggle('bad', by !== 'openai');
+  $('perm-jev-title').textContent = t(by === 'openai' ? 'perm.openaiJudge' : 'perm.noJudge');
+  $('perm-jev-desc').textContent = t(by === 'openai' ? 'perm.openaiJudgeDesc' : 'perm.noJudgeDesc');
   $('start-voice').textContent = openai ? t('onb.startVoice') : t('start.demo');
   $('start-text').hidden = !openai;
 }
@@ -932,6 +1010,15 @@ function bindControls(): void {
     if (text) runDemo([{ speaker: 'assistant', text }]);
   });
   $('sim-stop').addEventListener('click', () => simulation.stop());
+
+  // API 키
+  for (const b of document.querySelectorAll<HTMLElement>('.keys-open')) b.addEventListener('click', openKeys);
+  $('keys-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    saveKeys($<HTMLInputElement>('key-openai').value, $<HTMLInputElement>('key-jev').value);
+  });
+  $('keys-clear').addEventListener('click', () => saveKeys('', ''));
+  $('keys-cancel').addEventListener('click', () => $<HTMLDialogElement>('keys').close());
 }
 
 /** 화면 언어를 바꾸고, 코드가 만든 글을 모두 다시 그린다. AI 가 쓰는 말은 다음 연결부터 바뀐다. */
@@ -959,6 +1046,49 @@ function applyLang(next: Lang): void {
   refresh();
 }
 
+/** .env 의 키와 화면에 넣은 키를 합쳐, 무엇을 할 수 있는지와 요청에 붙일 헤더를 다시 정한다 */
+function syncKeys(): void {
+  const by = judgedBy();
+  state.config.openai = serverKeys.openai || Boolean(keys.openai);
+  // 판단할 수 있는지: Jev 키가 없어도 OpenAI 키가 있으면 OpenAI 모델이 대신 판단한다
+  state.config.jev = by !== 'none';
+  // 정적 페이지는 키가 있을 때만 대화용 화면 요소를 보여 준다. 서버가 없으니 헤더로 보낼 곳도 없다.
+  document.body.dataset.static = replayOnly() ? 'on' : 'off';
+  if (!STATIC_PAGE) connectionOptions.headers = keyHeaders();
+  setNotice(by === 'none' ? t('notice.noJev') : '');
+  const ready = state.config.openai ? t('status.ready', { model: state.config.model }) : t(STATIC_PAGE ? 'status.static' : 'status.noOpenai');
+  setStatus(by === 'openai' ? `${ready} ${t('status.openaiJudge')}` : ready);
+  lastRender = '';
+  refresh();
+}
+
+/** 키 입력 창을 연다. 넣어 둔 키는 가려서 보여 주고, .env 에 키가 있으면 비워 둬도 된다고 알린다. */
+function openKeys(): void {
+  const fields = [
+    ['key-openai', keys.openai, serverKeys.openai],
+    ['key-jev', keys.jev, serverKeys.jev],
+  ] as const;
+  for (const [id, value, onServer] of fields) {
+    const input = $<HTMLInputElement>(id);
+    input.value = value;
+    input.placeholder = t(onServer ? 'keys.onServer' : 'keys.empty');
+  }
+  // 정적 페이지는 키가 가는 곳이 다르다(서버 없이 OpenAI 로 직접). 설명을 그에 맞춘다.
+  if (STATIC_PAGE) $('keys-desc').textContent = t('keys.descStatic');
+  $<HTMLDialogElement>('keys').showModal();
+}
+
+function saveKeys(openai: string, jev: string): void {
+  keys.openai = openai.trim();
+  keys.jev = jev.trim();
+  for (const name of ['openai', 'jev'] as const) {
+    if (keys[name]) store.set(`key.${name}`, keys[name]);
+    else store.remove(`key.${name}`);
+  }
+  $<HTMLDialogElement>('keys').close();
+  syncKeys();
+}
+
 /** 재생 중인 예시 대화를 멈추고 지금 언어와 몸으로 다시 튼다 */
 function restartDemo(): void {
   simulation.stop();
@@ -966,7 +1096,8 @@ function restartDemo(): void {
 }
 
 async function init(): Promise<void> {
-  document.body.dataset.static = STATIC_PAGE ? 'on' : 'off';
+  document.body.dataset.pages = STATIC_PAGE ? 'on' : 'off';
+  document.body.dataset.static = replayOnly() ? 'on' : 'off';
   takeThumbnails();
   applyLang(lang());
   showAvatar(state.avatar);
@@ -980,22 +1111,17 @@ async function init(): Promise<void> {
   tick();
   setInterval(updateTimer, 1000);
 
-  if (STATIC_PAGE) {
-    // 서버가 없다. 음성 대화는 끄고, 표정은 녹화된 판단으로 재생한다.
-    setStatus(t('status.static'));
-    lastRender = '';
-    refresh();
-    return;
-  }
-  const config = (await (await fetch('/api/config')).json()) as AppConfig;
+  // 정적 페이지에는 서버가 없다. 키는 사용자가 넣은 것뿐이고, 없으면 녹화된 판단으로 예시 대화만 재생한다.
+  const config: AppConfig = STATIC_PAGE
+    ? { openai: false, jev: false, model: DEFAULT_REALTIME_MODEL, voice: DEFAULT_VOICE, voices: DEFAULT_VOICES }
+    : ((await (await fetch('/api/config')).json()) as AppConfig);
   state.config = config;
+  serverKeys.openai = config.openai;
+  serverKeys.jev = config.jev;
   if (!config.voices.includes(state.voice)) state.voice = config.voice;
   $('voice').innerHTML = config.voices.map((v) => `<option value="${v}">${voiceLabel(v)}</option>`).join('');
   buildVoiceChips();
-  if (!config.jev) setNotice(t('notice.noJev'));
-  setStatus(config.openai ? t('status.ready', { model: config.model }) : t('status.noOpenai'));
-  lastRender = '';
-  refresh();
+  syncKeys();
 }
 
 // 브라우저 콘솔과 자동 검증에서 현재 상태를 들여다보기 위한 창구
