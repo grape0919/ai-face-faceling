@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "tsx --conditions=faceling-source server.ts",
     "record": "tsx --conditions=faceling-source scripts/record.ts",
+    "compare": "tsx --conditions=faceling-source scripts/compare-judges.ts",
     "build:pages": "vite build --mode pages",
     "typecheck": "tsc --noEmit"
   },

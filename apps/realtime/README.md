@@ -8,8 +8,27 @@ OpenAI Realtime API 로 음성 대화를 하면서, AI 의 얼굴이 말의 뜻�
 저장소 루트의 `.env` 에 키를 넣는다.
 
 ```
-TYPESAFE_API_KEY=...   # Jev (표정 판단)
+TYPESAFE_API_KEY=...   # Jev (표정 판단). 없으면 OpenAI 모델이 대신 판단한다(아래 "판단 모델")
 OPENAI_API_KEY=...     # 음성 대화. 없으면 모의 대화만 된다.
+```
+
+`.env` 없이 화면에서 키를 넣을 수도 있다. 대화 화면 위쪽의 "API 키"(온보딩에서는 "API 키 입력")에 넣으면
+이 브라우저에만 저장되고, 요청할 때 `X-OpenAI-Key`, `X-TypeSafe-Key` 헤더로 이 서버에 보내진다.
+서버는 그 키를 `.env` 의 키보다 먼저 쓰며, 파일이나 판단 기록에는 남기지 않는다. 비워 두면 `.env` 의 키를 쓴다.
+정적 페이지(공개 데모)에는 서버가 없어 OpenAI 키만 받는다. 그 키는 브라우저에서 OpenAI 로 직접 간다(아래 "정적 페이지").
+
+## 판단 모델
+
+표정 판단은 Jev 가 한다. Jev 키가 없고 OpenAI 키가 있으면 OpenAI 모델(기본 `gpt-5.4-mini`)이 같은 질문에 답해 대신 판단한다.
+`OPENAI_JUDGE_MODEL` 로 모델을, `OPENAI_JUDGE_REASONING_EFFORT` 로 추론 모델의 생각하는 정도를 바꾼다.
+
+대체는 Jev 와 두 가지가 다르다.
+
+- 느리다. 절 하나에 약 1.1초가 걸린다(Jev 는 0.2~0.3초). 예시 대화로 재면 판단 15개 가운데 3개가 그 말이 시작된 뒤에 도착했다(Jev 는 0개).
+- 선택지마다 확률을 내지 않고 고른 것 하나만 낸다. 그래서 고른 동작에만 정해 둔 확률(0.9)이 실린다.
+
+```bash
+npm run compare -w @faceling/realtime -- gpt-5.4-mini@none gpt-4.1-mini   # Jev 와 나란히: 고른 동작과 걸린 시간
 ```
 
 ```bash
@@ -97,14 +116,17 @@ public/brand/      로고(심볼, 조합형)
 
 ### 정적 페이지(녹화 데모)
 
-서버와 키 없이 예시 대화만 재생하는 페이지를 만들 수 있다. GitHub Pages 에 올라가는 것이 이것이다.
+서버 없이 돌아가는 페이지를 만들 수 있다. GitHub Pages 에 올라가는 것이 이것이다.
+키가 없으면 녹화된 판단으로 예시 대화만 재생한다. 방문자가 "API 키"에 자기 OpenAI 키를 넣으면 그 페이지에서 바로 대화할 수 있다:
+임시 키 발급(`@faceling/server` 의 처리기를 브라우저 안에서 돌린다)과 표정 판단(`createOpenAIAnalyzer`)이 모두 브라우저에서 OpenAI 로 직접 간다.
+Jev 는 브라우저의 요청을 받지 않아(CORS) 이 페이지에서는 쓸 수 없다. 키는 방문자의 브라우저에만 저장된다.
 
 ```bash
 npm run rt:record   # 예시 대화를 실제 Jev 로 돌려 판단을 public/recordings.json 에 녹화한다 (TYPESAFE_API_KEY 필요)
 npm run rt:pages    # apps/realtime/dist 에 정적 페이지를 만든다
 ```
 
-정적 페이지는 판단을 묻는 대신 녹화에서 같은 구간의 답을 찾아 쓴다(`src/recorded.ts`). 그래서 `src/simulate.ts` 의 예시 대화나 판단 질문을 바꾸면 `rt:record` 를 다시 돌려 녹화를 새로 남겨야 한다. 개발 서버에서도 주소에 `?static` 을 붙이면 같은 방식으로 돌아간다. main 에 올리면 `.github/workflows/pages.yml` 이 빌드해서 배포한다.
+예시 대화는 키가 있어도 판단을 묻는 대신 녹화에서 같은 구간의 답을 찾아 쓴다(`src/recorded.ts`). 그래서 `src/simulate.ts` 의 예시 대화나 판단 질문을 바꾸면 `rt:record` 를 다시 돌려 녹화를 새로 남겨야 한다. 개발 서버에서도 주소에 `?static` 을 붙이면 같은 방식으로 돌아간다. main 에 올리면 `.github/workflows/pages.yml` 이 빌드해서 배포한다.
 
 개발 중에는 패키지를 빌드하지 않는다. `npm run rt:dev` 는 `faceling-source` 조건으로 각 패키지의 TS 원본을 바로 읽는다. 브라우저 쪽 패키지는 고친 뒤 화면을 새로 고치면, `@faceling/server` 는 서버를 다시 시작하면 반영된다.
 

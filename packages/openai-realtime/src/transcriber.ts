@@ -17,6 +17,8 @@ export interface LiveTranscriberOptions {
   sessionUrl?: string;
   /** 임시 키 요청에 붙일 헤더 */
   headers?: Record<string, string>;
+  /** 임시 키를 받을 때 쓸 fetch. 서버 없이 브라우저 안에서 발급할 때 바꿔 끼운다. */
+  fetch?: typeof fetch;
 }
 
 export class LiveTranscriber {
@@ -35,7 +37,7 @@ export class LiveTranscriber {
   ) {}
 
   async connect(mic: MediaStream): Promise<void> {
-    const tokenRes = await fetch(this.options.sessionUrl ?? '/api/transcription-session', {
+    const tokenRes = await (this.options.fetch ?? fetch)(this.options.sessionUrl ?? '/api/transcription-session', {
       method: 'POST',
       headers: this.options.headers,
     });

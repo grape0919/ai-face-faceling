@@ -44,6 +44,11 @@ export interface RealtimeConnectionOptions {
   transcriptionSessionUrl?: string;
   /** 임시 키 요청에 붙일 헤더. 내 서버의 인증에 쓴다. */
   headers?: Record<string, string>;
+  /**
+   * 임시 키를 받을 때 쓸 fetch. 서버 없이 브라우저 안에서 임시 키를 발급할 때 바꿔 끼운다
+   * (@faceling/server 의 처리기는 Request 를 받아 Response 를 돌려주므로 그대로 넣을 수 있다).
+   */
+  fetch?: typeof fetch;
   /** speakFirst() 가 AI 에게 넣는 지시. 기본값은 한국어 인사 요청이다. */
   greeting?: string;
 }
@@ -91,7 +96,7 @@ export class RealtimeConnection {
 
   async connect(options: ConnectOptions = {}): Promise<void> {
     this.callbacks.onStatus('임시 키를 받는 중');
-    const tokenRes = await fetch(this.options.sessionUrl ?? '/api/session', {
+    const tokenRes = await (this.options.fetch ?? fetch)(this.options.sessionUrl ?? '/api/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.options.headers },
       body: JSON.stringify({ voice: options.voice, character: options.character }),
@@ -172,7 +177,7 @@ export class RealtimeConnection {
       const transcriber = new LiveTranscriber(
         (text) => this.onPartial(text),
         (message) => this.callbacks.onError(message),
-        { sessionUrl: this.options.transcriptionSessionUrl, headers: this.options.headers },
+        { sessionUrl: this.options.transcriptionSessionUrl, headers: this.options.headers, fetch: this.options.fetch },
       );
       try {
         await transcriber.connect(this.mic);
