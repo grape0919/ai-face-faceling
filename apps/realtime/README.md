@@ -28,7 +28,7 @@ OPENAI_API_KEY=...     # 음성 대화. 없으면 모의 대화만 된다.
 - 선택지마다 확률을 내지 않고 고른 것 하나만 낸다. 그래서 고른 동작에만 정해 둔 확률(0.9)이 실린다.
 
 ```bash
-npm run compare -w @faceling/realtime -- gpt-5.4-mini@none gpt-4.1-mini   # Jev 와 나란히: 고른 동작과 걸린 시간
+npm run compare -w @redbridge/faceling-realtime -- gpt-5.4-mini@none gpt-4.1-mini   # Jev 와 나란히: 고른 동작과 걸린 시간
 ```
 
 ```bash
@@ -95,7 +95,7 @@ OpenAI 키가 없으면 "예시 대화 보기"로 표정 경로를 볼 수 있�
 ## 구조
 
 ```
-server.ts          @faceling/server 로 임시 키 발급·Jev 중계, 화면 설정(/api/config), 판단 기록, 화면 파일 제공
+server.ts          @redbridge/faceling-server 로 임시 키 발급·Jev 중계, 화면 설정(/api/config), 판단 기록, 화면 파일 제공
 src/simulate.ts    모의 대화
 src/main.ts        화면(온보딩, 대화 화면, 개발자 패널)
 public/brand/      로고(심볼, 조합형)
@@ -105,10 +105,10 @@ public/brand/      로고(심볼, 조합형)
 
 | 패키지 | 여기서 쓰는 것 |
 |---|---|
-| `@faceling/core` | 표정 엔진(`live.ts`, `compositor.ts`, `clauses.ts`) |
-| `@faceling/openai-realtime` | OpenAI Realtime 어댑터(`connection.ts`: WebRTC 연결, 사건 → LiveDirector)와 말하는 도중의 전사를 받는 두 번째 연결(`transcriber.ts`) |
-| `@faceling/rigs` | 페이스링·로봇·강아지 얼굴과 VRM 연결 |
-| `@faceling/server` | `/api/session`, `/api/transcription-session`, `/api/judge` 처리기 |
+| `@redbridge/faceling-core` | 표정 엔진(`live.ts`, `compositor.ts`, `clauses.ts`) |
+| `@redbridge/faceling-openai-realtime` | OpenAI Realtime 어댑터(`connection.ts`: WebRTC 연결, 사건 → LiveDirector)와 말하는 도중의 전사를 받는 두 번째 연결(`transcriber.ts`) |
+| `@redbridge/faceling-rigs` | 페이스링·로봇·강아지 얼굴과 VRM 연결 |
+| `@redbridge/faceling-server` | `/api/session`, `/api/transcription-session`, `/api/judge` 처리기 |
 
 ### 화면 언어
 
@@ -118,7 +118,7 @@ public/brand/      로고(심볼, 조합형)
 
 서버 없이 돌아가는 페이지를 만들 수 있다. GitHub Pages 에 올라가는 것이 이것이다.
 키가 없으면 녹화된 판단으로 예시 대화만 재생한다. 방문자가 "API 키"에 자기 OpenAI 키를 넣으면 그 페이지에서 바로 대화할 수 있다:
-임시 키 발급(`@faceling/server` 의 처리기를 브라우저 안에서 돌린다)과 표정 판단(`createOpenAIAnalyzer`)이 모두 브라우저에서 OpenAI 로 직접 간다.
+임시 키 발급(`@redbridge/faceling-server` 의 처리기를 브라우저 안에서 돌린다)과 표정 판단(`createOpenAIAnalyzer`)이 모두 브라우저에서 OpenAI 로 직접 간다.
 Jev 는 브라우저의 요청을 받지 않아(CORS) 이 페이지에서는 쓸 수 없다. 키는 방문자의 브라우저에만 저장된다.
 
 ```bash
@@ -128,7 +128,7 @@ npm run rt:pages    # apps/realtime/dist 에 정적 페이지를 만든다
 
 예시 대화는 키가 있어도 판단을 묻는 대신 녹화에서 같은 구간의 답을 찾아 쓴다(`src/recorded.ts`). 그래서 `src/simulate.ts` 의 예시 대화나 판단 질문을 바꾸면 `rt:record` 를 다시 돌려 녹화를 새로 남겨야 한다. 개발 서버에서도 주소에 `?static` 을 붙이면 같은 방식으로 돌아간다. main 에 올리면 `.github/workflows/pages.yml` 이 빌드해서 배포한다.
 
-개발 중에는 패키지를 빌드하지 않는다. `npm run rt:dev` 는 `faceling-source` 조건으로 각 패키지의 TS 원본을 바로 읽는다. 브라우저 쪽 패키지는 고친 뒤 화면을 새로 고치면, `@faceling/server` 는 서버를 다시 시작하면 반영된다.
+개발 중에는 패키지를 빌드하지 않는다. `npm run rt:dev` 는 `faceling-source` 조건으로 각 패키지의 TS 원본을 바로 읽는다. 브라우저 쪽 패키지는 고친 뒤 화면을 새로 고치면, `@redbridge/faceling-server` 는 서버를 다시 시작하면 반영된다.
 
 다른 음성 대화 서비스에 붙이려면 `packages/openai-realtime/src/connection.ts` 에 해당하는 어댑터만 새로 쓰면 된다. LiveDirector 가 받는 사건은 다음이 전부다.
 

@@ -1,5 +1,5 @@
 {
-  "name": "@faceling/realtime",
+  "name": "@redbridge/faceling-realtime",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,10 +12,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@faceling/core": "*",
-    "@faceling/openai-realtime": "*",
-    "@faceling/rigs": "*",
-    "@faceling/server": "*",
+    "@redbridge/faceling-core": "*",
+    "@redbridge/faceling-openai-realtime": "*",
+    "@redbridge/faceling-rigs": "*",
+    "@redbridge/faceling-server": "*",
     "@pixiv/three-vrm": "^3.5.5",
     "three": "^0.187.0"
   },

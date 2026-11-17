@@ -6,7 +6,7 @@ import { defaultClientConditions, defineConfig } from 'vite';
  */
 export default defineConfig({
   base: './',
-  // 저장소 안의 @faceling/* 패키지는 빌드하지 않고 TS 원본을 그대로 쓴다
+  // 저장소 안의 @redbridge/faceling-* 패키지는 빌드하지 않고 TS 원본을 그대로 쓴다
   resolve: { conditions: ['faceling-source', ...defaultClientConditions] },
   build: { outDir: 'dist', emptyOutDir: true },
 });

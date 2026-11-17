@@ -1,1 +1,1 @@
-export * from '@faceling/rigs/dog';
+export * from '@redbridge/faceling-rigs/dog';

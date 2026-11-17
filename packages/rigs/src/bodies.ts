@@ -1,11 +1,11 @@
-import type { BodySpec } from '@faceling/core/body';
-import { FACE_CHANNELS, type ChannelSpec } from '@faceling/core/channels';
+import type { BodySpec } from '@redbridge/faceling-core/body';
+import { FACE_CHANNELS, type ChannelSpec } from '@redbridge/faceling-core/channels';
 
 /**
  * 들어 있는 리그들의 몸 명세. 리그가 "나는 이런 몸이고 이런 움직임을 할 수 있다"고 선언하는 곳이다.
  * 판단 질문은 이 명세에서 만들어지고(LiveDirector.body, 서버의 bodies 옵션), 결과로 나온 move.* 를
  * 실제 움직임으로 옮기는 것은 각 리그가 한다. 새 몸을 붙일 때는 이런 명세 하나와 리그 하나를 만들면 된다.
- * three.js 를 쓰지 않으므로 서버에서도 '@faceling/rigs/bodies' 로 가져올 수 있다.
+ * three.js 를 쓰지 않으므로 서버에서도 '@redbridge/faceling-rigs/bodies' 로 가져올 수 있다.
  */
 
 /** 얼굴 캐릭터(페이스링, 로봇, 강아지, VRM). 움직임은 고개로 한다. */

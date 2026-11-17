@@ -1,5 +1,5 @@
-import type { AnalyzerInput, Judgment } from '@faceling/core/judgment';
-import { restProbs } from '@faceling/core/regions';
+import type { AnalyzerInput, Judgment } from '@redbridge/faceling-core/judgment';
+import { restProbs } from '@redbridge/faceling-core/regions';
 
 /**
  * 녹화된 판단. 서버와 키 없이 정적 페이지(GitHub Pages)에서 예시 대화를 재생할 때 쓴다.

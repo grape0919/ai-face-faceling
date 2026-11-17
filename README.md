@@ -55,16 +55,14 @@ Faceling is split into four packages. Use only the ones you need.
 
 | Package | Runs in | What it gives you |
 |---|---|---|
-| [`@faceling/core`](packages/core) | anywhere | The engine: `LiveDirector` (takes conversation events, judges clauses, schedules expressions) and `LiveFace` (one frame of ARKit 52 values per call). No dependencies |
-| [`@faceling/server`](packages/server) | Node 20+ | Request handlers that keep your keys on the server: Jev judgment relay and OpenAI Realtime ephemeral keys |
-| [`@faceling/openai-realtime`](packages/openai-realtime) | browser | Adapter that connects to the OpenAI Realtime API over WebRTC and feeds its events to the engine |
-| [`@faceling/rigs`](packages/rigs) | browser | Ready-made three.js characters: the Faceling face, robot, dog, a faceless robot arm and a VRM adapter. `three` is a peer dependency |
+| [`@redbridge/faceling-core`](packages/core) | anywhere | The engine: `LiveDirector` (takes conversation events, judges clauses, schedules expressions) and `LiveFace` (one frame of ARKit 52 values per call). No dependencies |
+| [`@redbridge/faceling-server`](packages/server) | Node 20+ | Request handlers that keep your keys on the server: Jev judgment relay and OpenAI Realtime ephemeral keys |
+| [`@redbridge/faceling-openai-realtime`](packages/openai-realtime) | browser | Adapter that connects to the OpenAI Realtime API over WebRTC and feeds its events to the engine |
+| [`@redbridge/faceling-rigs`](packages/rigs) | browser | Ready-made three.js characters: the Faceling face, robot, dog, a faceless robot arm and a VRM adapter. `three` is a peer dependency |
 
 ```bash
-npm install @faceling/core @faceling/server @faceling/openai-realtime @faceling/rigs three
+npm install @redbridge/faceling-core @redbridge/faceling-server @redbridge/faceling-openai-realtime @redbridge/faceling-rigs three
 ```
-
-> The packages are not on npm yet. Until they are, build them from this repository with `npm run build`, then `npm pack -w @faceling/core -w @faceling/server -w @faceling/openai-realtime -w @faceling/rigs`, and install the resulting `.tgz` files.
 
 ### Server
 
@@ -73,7 +71,7 @@ The keys stay here. Set `OPENAI_API_KEY` and `TYPESAFE_API_KEY` in the environme
 ```ts
 // server.ts (Node 20+)
 import { createServer } from 'node:http';
-import { createFacelingHandler, toNodeHandler } from '@faceling/server';
+import { createFacelingHandler, toNodeHandler } from '@redbridge/faceling-server';
 
 // Serves POST /api/session, /api/transcription-session and /api/judge
 const api = toNodeHandler(
@@ -97,9 +95,9 @@ The handlers are plain `Request → Response` functions, so they fit other frame
 ### Browser
 
 ```ts
-import { LiveDirector, LiveFace, createRemoteJudge } from '@faceling/core';
-import { RealtimeConnection } from '@faceling/openai-realtime';
-import { FacelingRig } from '@faceling/rigs';
+import { LiveDirector, LiveFace, createRemoteJudge } from '@redbridge/faceling-core';
+import { RealtimeConnection } from '@redbridge/faceling-openai-realtime';
+import { FacelingRig } from '@redbridge/faceling-rigs';
 import * as THREE from 'three';
 
 // The engine: judges each clause through your server (/api/judge) and times it to the audio
@@ -133,7 +131,7 @@ renderer.setAnimationLoop(() => {
 
 If your server lives elsewhere, pass the URLs: `createRemoteJudge({ url })` and `new RealtimeConnection(director, callbacks, { sessionUrl, transcriptionSessionUrl, headers })`. The adapter's status messages and default greeting are in Korean for now; pass `greeting` to change what the AI is told to open with.
 
-To drive your own face instead of the built-in one, read the frame yourself. `face.update(now, mouth)` returns `{ shapes, head, gaze }`: `shapes` maps ARKit 52 blendshape names to 0–1, `head` holds `pitch`, `yaw` and `roll` in radians, and `gaze` holds `x` and `y` from −1 to 1. For a VRM model, load it with `@pixiv/three-vrm` and use `VrmRig` from `@faceling/rigs`.
+To drive your own face instead of the built-in one, read the frame yourself. `face.update(now, mouth)` returns `{ shapes, head, gaze }`: `shapes` maps ARKit 52 blendshape names to 0–1, `head` holds `pitch`, `yaw` and `roll` in radians, and `gaze` holds `x` and `y` from −1 to 1. For a VRM model, load it with `@pixiv/three-vrm` and use `VrmRig` from `@redbridge/faceling-rigs`.
 
 ### Beyond faces
 
@@ -154,7 +152,7 @@ The input and the judgment do not care what body shows them; only the last step 
 The built-in `ArmRig` is an example. It never looks at ARKit values; it turns `expression` into shoulder, elbow, wrist and claw angles:
 
 ```ts
-import { ArmRig } from '@faceling/rigs';
+import { ArmRig } from '@redbridge/faceling-rigs';
 
 const arm = new ArmRig();
 scene.add(arm.object);
@@ -164,9 +162,9 @@ renderer.setAnimationLoop(() => {
 });
 ```
 
-To drive your own body, read `frame.expression` the same way. `bodyFeelings(expression)` from `@faceling/core` condenses the actions into a few feelings (`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`) if that is easier to map. Its coefficients are a first draft.
+To drive your own body, read `frame.expression` the same way. `bodyFeelings(expression)` from `@redbridge/faceling-core` condenses the actions into a few feelings (`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`) if that is easier to map. Its coefficients are a first draft.
 
-Every rig in `@faceling/rigs` has the same shape, `Rig`: `body` (what it can do), `object` (what to add to the scene), `view` (where to put the camera), `apply(frame)` and an optional `update(dt)`. The demo treats faces, the arm and VRM models through that one shape, with no branch per kind of body. Write your own body to it and it drops in the same way.
+Every rig in `@redbridge/faceling-rigs` has the same shape, `Rig`: `body` (what it can do), `object` (what to add to the scene), `view` (where to put the camera), `apply(frame)` and an optional `update(dt)`. The demo treats faces, the arm and VRM models through that one shape, with no branch per kind of body. Write your own body to it and it drops in the same way.
 
 #### Doing what it is asked
 
@@ -175,7 +173,7 @@ Every rig in `@faceling/rigs` has the same shape, `Rig`: `body` (what it can do)
 - **One intent, any body.** A deliberate move is a body-neutral intent in one part, `move`: `up`, `down`, `left`, `right`, `forward`, `wave`, `home`. The judgment says `move.left`; a face turns its head left, the robot arm reaches left. Ask the arm to "lift your head" and it still raises its arm. Left and right are as the viewer sees them.
 - **Stricter than feelings.** Deliberate moves only start above 50 % probability and are full at 85 %, regardless of how strong the feeling is. A wink needs more than 50 % too and happens once per reply, so a follow-up line that describes the wink does not repeat it.
 - **Poses stay.** A head or arm pose asked for is held for five seconds after the line ends, until another move replaces it or the AI says it is going back (`home`). Otherwise a one-phrase reply would flick it out and straight back.
-- **Each body declares what it can do.** A `BodySpec` (`@faceling/core/body`) names the body, describes it in a sentence, lists the moves it can make with what each means for that body, and can reword other actions (the arm has no eyes, so its `eyes.wink` is asked as "the light on its wrist blinks"). The engine never knows the kind of body: it builds the questions from the spec, asks only the listed moves, and only while the AI speaks. `@faceling/rigs` ships `FACE_BODY` and `ARM_BODY`; every rig exposes its own as `rig.body`. Wire it in two places: `director.body = rig.body` in the browser, and `createJudgeHandler({ bodies: [FACE_BODY, ARM_BODY] })` on the server (the browser only sends the body's name). A new body is one spec plus one rig that maps `move.*` and the feelings to its own joints; nothing in the engine changes.
+- **Each body declares what it can do.** A `BodySpec` (`@redbridge/faceling-core/body`) names the body, describes it in a sentence, lists the moves it can make with what each means for that body, and can reword other actions (the arm has no eyes, so its `eyes.wink` is asked as "the light on its wrist blinks"). The engine never knows the kind of body: it builds the questions from the spec, asks only the listed moves, and only while the AI speaks. `@redbridge/faceling-rigs` ships `FACE_BODY` and `ARM_BODY`; every rig exposes its own as `rig.body`. Wire it in two places: `director.body = rig.body` in the browser, and `createJudgeHandler({ bodies: [FACE_BODY, ARM_BODY] })` on the server (the browser only sends the body's name). A new body is one spec plus one rig that maps `move.*` and the feelings to its own joints; nothing in the engine changes.
 - **The AI must know its body.** Otherwise it says "I can't move". `createSessionHandler({ characters: { [ARM_BODY.name]: '…' } })` appends a body description, in the language of the conversation, chosen by the `character` the browser sends (`connect({ character: rig.body.name })`). The demo tells the arm what it can do and to answer with a short "here it goes" line, and tells faces they can move their head but have no arms.
 
 #### Per-part values (experimental)
@@ -216,7 +214,7 @@ Turn it on with `director.mode = 'channels'` (the demo: developer panel → "부
 
 ### Other voice services
 
-`@faceling/openai-realtime` is only an adapter. To use another voice service, write one that calls these `LiveDirector` methods as its events arrive. This is the whole list.
+`@redbridge/faceling-openai-realtime` is only an adapter. To use another voice service, write one that calls these `LiveDirector` methods as its events arrive. This is the whole list.
 
 | Method | When to call it |
 |---|---|
@@ -230,7 +228,7 @@ Turn it on with `director.mode = 'channels'` (the demo: developer panel → "부
 | `userPartial(text)` | Words heard so far while the user is still speaking (everything from the start of this utterance). Optional |
 | `userTranscript(text)` | The final transcript of what the user said |
 
-Lip sync goes in through the second argument of `face.update()`. `MouthAnalyser` from `@faceling/core/lipsync` reads it from a Web Audio `AnalyserNode`; pass `null` when there is no audio.
+Lip sync goes in through the second argument of `face.update()`. `MouthAnalyser` from `@redbridge/faceling-core/lipsync` reads it from a Web Audio `AnalyserNode`; pass `null` when there is no audio.
 
 ## Project layout
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import type { Expression } from '@faceling/core/compositor';
-import { bodyFeelings } from '@faceling/core/feelings';
+import type { Expression } from '@redbridge/faceling-core/compositor';
+import { bodyFeelings } from '@redbridge/faceling-core/feelings';
 import { ARM_BODY } from './bodies.js';
 import type { Rig } from './rig.js';
 

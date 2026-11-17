@@ -1,5 +1,5 @@
-import { BLINK_DURATION, Compositor, bell, type MouthFeatures, type TurnState } from '@faceling/core/compositor';
-import type { FacePose } from '@faceling/core/mapping';
+import { BLINK_DURATION, Compositor, bell, type MouthFeatures, type TurnState } from '@redbridge/faceling-core/compositor';
+import type { FacePose } from '@redbridge/faceling-core/mapping';
 import type { Segment, Session } from '../shared/types';
 import { buildCues, buildGestures, type Cue, type Gesture, type Level, type Weights } from './cues';
 

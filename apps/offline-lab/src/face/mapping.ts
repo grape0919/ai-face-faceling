@@ -1,1 +1,1 @@
-export * from '@faceling/core/mapping';
+export * from '@redbridge/faceling-core/mapping';

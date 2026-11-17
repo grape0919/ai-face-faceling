@@ -1,7 +1,7 @@
-import { charCount } from '@faceling/core/clauses';
-import type { MouthFeatures } from '@faceling/core/compositor';
-import type { LiveDirector } from '@faceling/core/live';
-import { ARM_BODY } from '@faceling/rigs/bodies';
+import { charCount } from '@redbridge/faceling-core/clauses';
+import type { MouthFeatures } from '@redbridge/faceling-core/compositor';
+import type { LiveDirector } from '@redbridge/faceling-core/live';
+import { ARM_BODY } from '@redbridge/faceling-rigs/bodies';
 
 /**
  * OpenAI 연결 없이 실시간 경로를 돌려 보는 모의 대화.

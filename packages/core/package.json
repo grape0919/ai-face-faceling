@@ -1,5 +1,5 @@
 {
-  "name": "@faceling/core",
+  "name": "@redbridge/faceling-core",
   "version": "0.1.0",
   "description": "Expression engine for voice AI: reads the conversation text, picks an action per face part and outputs ARKit 52 values in real time",
   "keywords": [

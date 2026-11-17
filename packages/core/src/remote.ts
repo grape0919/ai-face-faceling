@@ -1,7 +1,7 @@
 import type { AnalyzerInput, Judgment } from './judgment.js';
 
 export interface RemoteJudgeOptions {
-  /** 판단을 중계하는 서버 주소. 기본값 '/api/judge' (@faceling/server 의 createJudgeHandler). */
+  /** 판단을 중계하는 서버 주소. 기본값 '/api/judge' (@redbridge/faceling-server 의 createJudgeHandler). */
   url?: string;
   /** 요청에 붙일 헤더. 서버 쪽 인증에 쓴다. */
   headers?: Record<string, string>;

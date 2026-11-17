@@ -1,5 +1,5 @@
 {
-  "name": "@faceling/offline-lab",
+  "name": "@redbridge/faceling-offline-lab",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,8 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@faceling/core": "*",
-    "@faceling/rigs": "*",
+    "@redbridge/faceling-core": "*",
+    "@redbridge/faceling-rigs": "*",
     "@anthropic-ai/sdk": "^1.8.0",
     "@pixiv/three-vrm": "^3.5.5",
     "three": "^0.187.0",

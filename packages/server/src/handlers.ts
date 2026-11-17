@@ -1,7 +1,7 @@
-import { createJevAnalyzer } from '@faceling/core/analyzers/jev';
-import { createOpenAIAnalyzer } from '@faceling/core/analyzers/openai';
-import type { Analyzer, AnalyzerInput, Judgment } from '@faceling/core/judgment';
-import type { BodySpec } from '@faceling/core/body';
+import { createJevAnalyzer } from '@redbridge/faceling-core/analyzers/jev';
+import { createOpenAIAnalyzer } from '@redbridge/faceling-core/analyzers/openai';
+import type { Analyzer, AnalyzerInput, Judgment } from '@redbridge/faceling-core/judgment';
+import type { BodySpec } from '@redbridge/faceling-core/body';
 
 /**
  * 프레임워크에 상관없는 요청 처리기. 표준 Request 를 받아 Response 를 돌려준다.
@@ -116,7 +116,7 @@ export interface SessionHandlerOptions {
 
 /**
  * 브라우저가 OpenAI Realtime 에 직접 붙을 때 쓸 임시 키를 발급한다(POST, 본문 { voice?, character? }).
- * 응답은 { value, expires_at, model, voice }. @faceling/openai-realtime 의 RealtimeConnection 이 이 형식을 읽는다.
+ * 응답은 { value, expires_at, model, voice }. @redbridge/faceling-openai-realtime 의 RealtimeConnection 이 이 형식을 읽는다.
  */
 export function createSessionHandler(options: SessionHandlerOptions = {}): FetchHandler {
   return postOnly(async (request) => {
@@ -208,10 +208,10 @@ export interface JudgeHandlerOptions {
    * Jev 키가 있으면 늘 Jev 가 판단한다. OpenAI 모델은 같은 질문에 답하지만 Jev 보다 느리다.
    */
   openaiApiKey?: ApiKeySource;
-  /** 대신 판단할 OpenAI 모델. 없으면 OPENAI_JUDGE_MODEL, 그것도 없으면 @faceling/core 의 기본값. */
+  /** 대신 판단할 OpenAI 모델. 없으면 OPENAI_JUDGE_MODEL, 그것도 없으면 @redbridge/faceling-core 의 기본값. */
   openaiModel?: string;
   /**
-   * 판단에 쓸 수 있는 몸 명세들(예: @faceling/rigs 의 FACE_BODY, ARM_BODY). 브라우저가 본문의 body 로 이름을 보내면
+   * 판단에 쓸 수 있는 몸 명세들(예: @redbridge/faceling-rigs 의 FACE_BODY, ARM_BODY). 브라우저가 본문의 body 로 이름을 보내면
    * 그 몸이 할 수 있는 움직임을 함께 묻는다. 없으면 감정 표현만 판단한다.
    */
   bodies?: BodySpec[];
@@ -222,7 +222,7 @@ export interface JudgeHandlerOptions {
 /**
  * 브라우저 대신 분석기를 부른다(POST, 본문은 AnalyzerInput). 응답은 { judgment, ms, analyzer }.
  * 분석기는 Jev 이고, Jev 키가 없고 OpenAI 키가 있으면 OpenAI 모델이 대신한다(analyzer 가 'jev' 또는 'openai').
- * 브라우저 쪽은 @faceling/core 의 createRemoteJudge() 로 이 주소를 부른다.
+ * 브라우저 쪽은 @redbridge/faceling-core 의 createRemoteJudge() 로 이 주소를 부른다.
  */
 export function createJudgeHandler(options: JudgeHandlerOptions = {}): FetchHandler {
   // 분석기는 키마다 하나씩 만들어 둔다(질문 세트를 다시 만들지 않게). 요청마다 키가 달라도 끝없이 쌓이지 않게 개수를 묶는다.

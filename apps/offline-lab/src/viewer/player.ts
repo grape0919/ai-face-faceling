@@ -1,5 +1,5 @@
 import type { Session } from '../shared/types';
-import { MouthAnalyser } from '@faceling/core/lipsync';
+import { MouthAnalyser } from '@redbridge/faceling-core/lipsync';
 import type { MouthFeatures } from '../face/engine';
 
 /**

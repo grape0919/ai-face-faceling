@@ -1,5 +1,5 @@
 /**
- * @faceling/server 의 진입점. 키를 서버에만 두고 브라우저에 필요한 것만 내주는 처리기들이다.
+ * @redbridge/faceling-server 의 진입점. 키를 서버에만 두고 브라우저에 필요한 것만 내주는 처리기들이다.
  *  - createJudgeHandler: 절 하나의 판단을 분석기(Jev)에 묻는다
  *  - createSessionHandler, createTranscriptionSessionHandler: OpenAI Realtime 임시 키를 발급한다
  *  - createFacelingHandler: 위 셋을 경로로 나눠 한 곳에 건다
