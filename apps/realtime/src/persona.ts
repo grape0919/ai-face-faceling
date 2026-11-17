@@ -1,4 +1,4 @@
-import { ARM_BODY, DOG_BODY, FACE_BODY } from '@faceling/rigs/bodies';
+import { ARM_BODY, DOG_BODY, FACE_BODY } from '@redbridge/faceling-rigs/bodies';
 
 /**
  * AI 의 말투와, 캐릭터(몸)별로 AI 에게 알려 줄 자기 몸. 화면 언어마다 하나씩 있다.

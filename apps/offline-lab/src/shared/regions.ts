@@ -1,1 +1,1 @@
-export * from '@faceling/core/regions';
+export * from '@redbridge/faceling-core/regions';

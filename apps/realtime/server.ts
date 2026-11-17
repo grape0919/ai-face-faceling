@@ -2,9 +2,9 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AnalyzerInput, Judgment } from '@faceling/core/judgment';
-import { REGION_KEYS, topAction } from '@faceling/core/regions';
-import { ARM_BODY, DOG_BODY, FACE_BODY } from '@faceling/rigs/bodies';
+import type { AnalyzerInput, Judgment } from '@redbridge/faceling-core/judgment';
+import { REGION_KEYS, topAction } from '@redbridge/faceling-core/regions';
+import { ARM_BODY, DOG_BODY, FACE_BODY } from '@redbridge/faceling-rigs/bodies';
 import {
   DEFAULT_LIVE_TRANSCRIBE_MODEL,
   DEFAULT_REALTIME_MODEL,
@@ -12,13 +12,13 @@ import {
   DEFAULT_VOICES,
   createFacelingHandler,
   toNodeHandler,
-} from '@faceling/server';
+} from '@redbridge/faceling-server';
 import { createServer as createViteServer, defaultClientConditions } from 'vite';
 import * as persona from './src/persona';
 
 /**
  * 실시간 예제의 서버. 임시 키 발급(/api/session, /api/transcription-session)과 Jev 중계(/api/judge)는
- * @faceling/server 가 맡고, 여기서는 화면 설정(/api/config), 판단 기록, 화면 파일 제공만 한다.
+ * @redbridge/faceling-server 가 맡고, 여기서는 화면 설정(/api/config), 판단 기록, 화면 파일 제공만 한다.
  * 내 PC 에서만 접속할 수 있게 127.0.0.1 에 연다.
  */
 
@@ -112,7 +112,7 @@ const vite = await createViteServer({
   configFile: false,
   appType: 'spa',
   server: { middlewareMode: true },
-  // 저장소 안의 @faceling/* 패키지는 빌드하지 않고 TS 원본을 그대로 쓴다
+  // 저장소 안의 @redbridge/faceling-* 패키지는 빌드하지 않고 TS 원본을 그대로 쓴다
   resolve: { conditions: ['faceling-source', ...defaultClientConditions] },
 });
 

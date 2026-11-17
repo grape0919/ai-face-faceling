@@ -1,4 +1,4 @@
-# @faceling/server
+# @redbridge/faceling-server
 
 Server-side handlers for [Faceling](https://github.com/grape0919/ai-face-faceling/blob/main/README.md). They keep your OpenAI and Jev keys on the server and give the browser only what it needs.
 
@@ -13,7 +13,7 @@ Every handler is a standard `(request: Request) => Promise<Response>`. Wrap it w
 
 ```ts
 import { createServer } from 'node:http';
-import { createFacelingHandler, toNodeHandler } from '@faceling/server';
+import { createFacelingHandler, toNodeHandler } from '@redbridge/faceling-server';
 
 const api = toNodeHandler(createFacelingHandler({ session: { language: 'en' }, transcription: { language: 'en' } }));
 createServer((req, res) => (req.url?.startsWith('/api/') ? void api(req, res) : res.writeHead(404).end())).listen(3000);

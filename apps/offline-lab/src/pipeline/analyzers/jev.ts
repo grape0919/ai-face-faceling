@@ -1,1 +1,1 @@
-export * from '@faceling/core/analyzers/jev';
+export * from '@redbridge/faceling-core/analyzers/jev';

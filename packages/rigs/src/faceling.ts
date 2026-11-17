@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARKIT_52, type FacePose } from '@faceling/core/mapping';
+import { ARKIT_52, type FacePose } from '@redbridge/faceling-core/mapping';
 import { FACE_BODY } from './bodies.js';
 import type { Rig } from './rig.js';
 

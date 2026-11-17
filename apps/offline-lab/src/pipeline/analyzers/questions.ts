@@ -1,1 +1,1 @@
-export * from '@faceling/core/questions';
+export * from '@redbridge/faceling-core/questions';

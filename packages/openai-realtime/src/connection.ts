@@ -1,12 +1,12 @@
-import type { MouthFeatures } from '@faceling/core/compositor';
-import { MouthAnalyser } from '@faceling/core/lipsync';
-import type { LiveDirector } from '@faceling/core/live';
+import type { MouthFeatures } from '@redbridge/faceling-core/compositor';
+import { MouthAnalyser } from '@redbridge/faceling-core/lipsync';
+import type { LiveDirector } from '@redbridge/faceling-core/live';
 import { LiveTranscriber } from './transcriber.js';
 
 /**
  * OpenAI Realtime API 에 WebRTC 로 붙고, 오는 사건을 LiveDirector 에 넘긴다.
  * 이 파일이 "어댑터"다. 다른 음성 대화 서비스에 붙일 때는 이 파일에 해당하는 것만 새로 쓰면 된다.
- * 실제 키는 서버에만 둔다. 이 클래스는 서버(@faceling/server 의 createSessionHandler)에서 몇 분짜리 임시 키를 받아 쓴다.
+ * 실제 키는 서버에만 둔다. 이 클래스는 서버(@redbridge/faceling-server 의 createSessionHandler)에서 몇 분짜리 임시 키를 받아 쓴다.
  *
  * 연결 방식은 OpenAI 문서(voice-webrtc)를 따랐다:
  *  1. 내 서버(sessionUrl)에서 임시 키를 받는다.
@@ -33,7 +33,7 @@ export interface ConnectOptions {
   withoutMic?: boolean;
   /** 연결되자마자 AI 가 먼저 인사하게 한다. */
   greet?: boolean;
-  /** 캐릭터(몸) 이름. 서버가 이 이름으로 AI 에게 자기 몸을 알려 준다(@faceling/server 의 characters 옵션). */
+  /** 캐릭터(몸) 이름. 서버가 이 이름으로 AI 에게 자기 몸을 알려 준다(@redbridge/faceling-server 의 characters 옵션). */
   character?: string;
 }
 
@@ -46,7 +46,7 @@ export interface RealtimeConnectionOptions {
   headers?: Record<string, string>;
   /**
    * 임시 키를 받을 때 쓸 fetch. 서버 없이 브라우저 안에서 임시 키를 발급할 때 바꿔 끼운다
-   * (@faceling/server 의 처리기는 Request 를 받아 Response 를 돌려주므로 그대로 넣을 수 있다).
+   * (@redbridge/faceling-server 의 처리기는 Request 를 받아 Response 를 돌려주므로 그대로 넣을 수 있다).
    */
   fetch?: typeof fetch;
   /** speakFirst() 가 AI 에게 넣는 지시. 기본값은 한국어 인사 요청이다. */

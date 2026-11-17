@@ -55,16 +55,14 @@ Faceling 은 패키지 네 개로 나뉘어 있다. 필요한 것만 쓰면 된�
 
 | 패키지 | 도는 곳 | 하는 일 |
 |---|---|---|
-| [`@faceling/core`](packages/core) | 어디서나 | 표정 엔진. `LiveDirector`(대화 사건을 받아 절마다 판단하고 표정을 예약)와 `LiveFace`(부를 때마다 ARKit 52 값 한 장). 의존성 없음 |
-| [`@faceling/server`](packages/server) | Node 20 이상 | 키를 서버에만 두는 요청 처리기. Jev 판단 중계, OpenAI Realtime 임시 키 발급 |
-| [`@faceling/openai-realtime`](packages/openai-realtime) | 브라우저 | OpenAI Realtime API 에 WebRTC 로 붙어 사건을 엔진에 넘기는 어댑터 |
-| [`@faceling/rigs`](packages/rigs) | 브라우저 | 바로 쓸 수 있는 three.js 캐릭터. 페이스링, 로봇, 강아지, 얼굴 없는 로봇팔, VRM 연결. `three` 는 peer 의존성 |
+| [`@redbridge/faceling-core`](packages/core) | 어디서나 | 표정 엔진. `LiveDirector`(대화 사건을 받아 절마다 판단하고 표정을 예약)와 `LiveFace`(부를 때마다 ARKit 52 값 한 장). 의존성 없음 |
+| [`@redbridge/faceling-server`](packages/server) | Node 20 이상 | 키를 서버에만 두는 요청 처리기. Jev 판단 중계, OpenAI Realtime 임시 키 발급 |
+| [`@redbridge/faceling-openai-realtime`](packages/openai-realtime) | 브라우저 | OpenAI Realtime API 에 WebRTC 로 붙어 사건을 엔진에 넘기는 어댑터 |
+| [`@redbridge/faceling-rigs`](packages/rigs) | 브라우저 | 바로 쓸 수 있는 three.js 캐릭터. 페이스링, 로봇, 강아지, 얼굴 없는 로봇팔, VRM 연결. `three` 는 peer 의존성 |
 
 ```bash
-npm install @faceling/core @faceling/server @faceling/openai-realtime @faceling/rigs three
+npm install @redbridge/faceling-core @redbridge/faceling-server @redbridge/faceling-openai-realtime @redbridge/faceling-rigs three
 ```
-
-> 아직 npm 에 올리지 않았다. 그전까지는 이 저장소에서 `npm run build` 로 빌드하고 `npm pack -w @faceling/core -w @faceling/server -w @faceling/openai-realtime -w @faceling/rigs` 로 만든 `.tgz` 파일을 설치한다.
 
 ### 서버
 
@@ -73,7 +71,7 @@ npm install @faceling/core @faceling/server @faceling/openai-realtime @faceling/
 ```ts
 // server.ts (Node 20 이상)
 import { createServer } from 'node:http';
-import { createFacelingHandler, toNodeHandler } from '@faceling/server';
+import { createFacelingHandler, toNodeHandler } from '@redbridge/faceling-server';
 
 // POST /api/session, /api/transcription-session, /api/judge 를 받는다
 const api = toNodeHandler(
@@ -97,9 +95,9 @@ createServer((req, res) => {
 ### 브라우저
 
 ```ts
-import { LiveDirector, LiveFace, createRemoteJudge } from '@faceling/core';
-import { RealtimeConnection } from '@faceling/openai-realtime';
-import { FacelingRig } from '@faceling/rigs';
+import { LiveDirector, LiveFace, createRemoteJudge } from '@redbridge/faceling-core';
+import { RealtimeConnection } from '@redbridge/faceling-openai-realtime';
+import { FacelingRig } from '@redbridge/faceling-rigs';
 import * as THREE from 'three';
 
 // 엔진: 절마다 내 서버(/api/judge)에 판단을 묻고, 소리에 맞춰 표정을 건다
@@ -133,7 +131,7 @@ renderer.setAnimationLoop(() => {
 
 서버 주소가 다르면 넘겨 준다. `createRemoteJudge({ url })`, `new RealtimeConnection(director, callbacks, { sessionUrl, transcriptionSessionUrl, headers })`. AI 가 먼저 인사할 때 받는 지시는 `greeting` 옵션으로 바꾼다.
 
-기본 얼굴 대신 내 얼굴을 움직이려면 프레임을 직접 읽는다. `face.update(now, mouth)` 는 `{ shapes, head, gaze }` 를 돌려준다. `shapes` 는 ARKit 52 blendshape 이름별 0~1 값, `head` 는 라디안 단위의 `pitch`, `yaw`, `roll`, `gaze` 는 -1~1 의 `x`, `y` 다. VRM 모델은 `@pixiv/three-vrm` 으로 불러와 `@faceling/rigs` 의 `VrmRig` 에 넣는다.
+기본 얼굴 대신 내 얼굴을 움직이려면 프레임을 직접 읽는다. `face.update(now, mouth)` 는 `{ shapes, head, gaze }` 를 돌려준다. `shapes` 는 ARKit 52 blendshape 이름별 0~1 값, `head` 는 라디안 단위의 `pitch`, `yaw`, `roll`, `gaze` 는 -1~1 의 `x`, `y` 다. VRM 모델은 `@pixiv/three-vrm` 으로 불러와 `@redbridge/faceling-rigs` 의 `VrmRig` 에 넣는다.
 
 ### 얼굴이 아닌 몸
 
@@ -154,7 +152,7 @@ renderer.setAnimationLoop(() => {
 들어 있는 `ArmRig` 가 그 예다. ARKit 값은 전혀 보지 않고 `expression` 을 어깨, 팔꿈치, 손목, 집게 각도로 옮긴다.
 
 ```ts
-import { ArmRig } from '@faceling/rigs';
+import { ArmRig } from '@redbridge/faceling-rigs';
 
 const arm = new ArmRig();
 scene.add(arm.object);
@@ -164,9 +162,9 @@ renderer.setAnimationLoop(() => {
 });
 ```
 
-내 몸을 움직이려면 `frame.expression` 을 같은 식으로 읽는다. 옮기기 편하도록 `@faceling/core` 의 `bodyFeelings(expression)` 가 동작들을 몇 가지 느낌(`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`)으로 묶어 준다. 계수는 초안이다.
+내 몸을 움직이려면 `frame.expression` 을 같은 식으로 읽는다. 옮기기 편하도록 `@redbridge/faceling-core` 의 `bodyFeelings(expression)` 가 동작들을 몇 가지 느낌(`happy`, `excited`, `sad`, `surprised`, `tense`, `tilt`, `lookAside`, `lookUp`, `lookDown`, `playful`)으로 묶어 준다. 계수는 초안이다.
 
-`@faceling/rigs` 의 리그는 모두 같은 형태 `Rig` 다: `body` (할 수 있는 것), `object` (장면에 넣을 물체), `view` (카메라를 둘 곳), `apply(frame)`, 그리고 있으면 `update(dt)`. 예제는 얼굴, 로봇팔, VRM 모델을 이 형태 하나로 다루고, 몸의 종류에 따른 분기가 없다. 내 몸도 이 형태로 만들면 그대로 끼워 넣을 수 있다.
+`@redbridge/faceling-rigs` 의 리그는 모두 같은 형태 `Rig` 다: `body` (할 수 있는 것), `object` (장면에 넣을 물체), `view` (카메라를 둘 곳), `apply(frame)`, 그리고 있으면 `update(dt)`. 예제는 얼굴, 로봇팔, VRM 모델을 이 형태 하나로 다루고, 몸의 종류에 따른 분기가 없다. 내 몸도 이 형태로 만들면 그대로 끼워 넣을 수 있다.
 
 #### 부탁한 동작 하기
 
@@ -175,7 +173,7 @@ renderer.setAnimationLoop(() => {
 - **의도는 하나, 몸은 무엇이든.** 일부러 하는 움직임은 몸과 상관없는 의도로, 부위 `move` 하나에 있다: `up`, `down`, `left`, `right`, `forward`, `wave`, `home`. 판단은 `move.left` 라고만 하고, 얼굴은 고개를 왼쪽으로 돌리고 로봇팔은 팔을 왼쪽으로 뻗는다. 로봇팔에게 "고개 들어 봐"라고 해도 팔을 든다. 왼쪽과 오른쪽은 보는 사람 기준이다.
 - **감정보다 엄격하게.** 일부러 하는 동작은 확률 50 % 를 넘어야 시작하고 85 % 에서 온전히 하며, 표정 세기와는 상관없다. 윙크도 50 % 를 넘어야 하고 한 응답에 한 번만 한다. 윙크한 것을 설명하는 뒷말에 또 하지 않는다.
 - **자세는 남는다.** 부탁받은 고개나 팔 자세는 말이 끝난 뒤에도 5초 동안 유지되고, 다른 동작이 오거나 AI 가 제자리로 돌아간다고 하면(`home`) 그때 바뀐다. 그렇지 않으면 한마디 답에 나갔다가 바로 돌아온다.
-- **몸이 할 수 있는 것을 스스로 선언한다.** 몸 명세 `BodySpec` (`@faceling/core/body`)에 몸의 이름, 한 문장 설명, 할 수 있는 움직임과 그 몸에서의 뜻을 적는다. 다른 동작의 설명도 바꿀 수 있다(로봇팔은 눈이 없으므로 `eyes.wink` 를 "손목의 불빛이 깜빡인다"로 묻는다). 엔진은 몸의 종류를 모른다. 명세로 질문을 만들고, 적힌 움직임만, AI 가 말하는 구간에만 묻는다. `@faceling/rigs` 에 `FACE_BODY` 와 `ARM_BODY` 가 들어 있고, 리그마다 `rig.body` 로 자기 명세를 내놓는다. 연결은 두 곳이다: 브라우저에서 `director.body = rig.body`, 서버에서 `createJudgeHandler({ bodies: [FACE_BODY, ARM_BODY] })` (브라우저는 몸의 이름만 보낸다). 새 몸은 명세 하나와, `move.*` 와 감정을 자기 관절로 옮기는 리그 하나면 된다. 엔진은 고치지 않는다.
+- **몸이 할 수 있는 것을 스스로 선언한다.** 몸 명세 `BodySpec` (`@redbridge/faceling-core/body`)에 몸의 이름, 한 문장 설명, 할 수 있는 움직임과 그 몸에서의 뜻을 적는다. 다른 동작의 설명도 바꿀 수 있다(로봇팔은 눈이 없으므로 `eyes.wink` 를 "손목의 불빛이 깜빡인다"로 묻는다). 엔진은 몸의 종류를 모른다. 명세로 질문을 만들고, 적힌 움직임만, AI 가 말하는 구간에만 묻는다. `@redbridge/faceling-rigs` 에 `FACE_BODY` 와 `ARM_BODY` 가 들어 있고, 리그마다 `rig.body` 로 자기 명세를 내놓는다. 연결은 두 곳이다: 브라우저에서 `director.body = rig.body`, 서버에서 `createJudgeHandler({ bodies: [FACE_BODY, ARM_BODY] })` (브라우저는 몸의 이름만 보낸다). 새 몸은 명세 하나와, `move.*` 와 감정을 자기 관절로 옮기는 리그 하나면 된다. 엔진은 고치지 않는다.
 - **AI 가 자기 몸을 알아야 한다.** 모르면 "저는 움직일 수 없어요"라고 답한다. `createSessionHandler({ characters: { [ARM_BODY.name]: '…' } })` 는 브라우저가 보낸 `character` (`connect({ character: rig.body.name })`)에 맞는 몸 설명을, 대화하는 언어로, 지시 뒤에 붙인다. 예제는 로봇팔에게 할 수 있는 동작과 "한마디로 해 보이기"를 알려 주고, 얼굴 캐릭터에게는 고개는 움직일 수 있지만 팔은 없다고 알려 준다.
 
 #### 부위별 수치 판단 (실험)
@@ -216,7 +214,7 @@ export const DOG_BODY: BodySpec = {
 
 ### 다른 음성 대화 서비스
 
-`@faceling/openai-realtime` 은 어댑터일 뿐이다. 다른 음성 대화 서비스에 붙이려면, 그 서비스의 사건이 올 때 `LiveDirector` 의 아래 메서드를 부르는 어댑터를 쓰면 된다. 이것이 전부다.
+`@redbridge/faceling-openai-realtime` 은 어댑터일 뿐이다. 다른 음성 대화 서비스에 붙이려면, 그 서비스의 사건이 올 때 `LiveDirector` 의 아래 메서드를 부르는 어댑터를 쓰면 된다. 이것이 전부다.
 
 | 메서드 | 언제 부르나 |
 |---|---|
@@ -230,7 +228,7 @@ export const DOG_BODY: BodySpec = {
 | `userPartial(text)` | 말하는 도중에 들린 글자(이번 발화의 처음부터 지금까지). 없어도 된다 |
 | `userTranscript(text)` | 사용자 말의 최종 전사 도착 |
 
-입 모양은 `face.update()` 의 두 번째 인자로 넣는다. `@faceling/core/lipsync` 의 `MouthAnalyser` 가 Web Audio `AnalyserNode` 에서 읽어 준다. 소리가 없으면 `null` 을 넣는다.
+입 모양은 `face.update()` 의 두 번째 인자로 넣는다. `@redbridge/faceling-core/lipsync` 의 `MouthAnalyser` 가 Web Audio `AnalyserNode` 에서 읽어 준다. 소리가 없으면 `null` 을 넣는다.
 
 ## 구성
 

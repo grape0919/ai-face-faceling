@@ -1,7 +1,7 @@
-import { actionWeight, amplitude, targetWeights, type Gesture, type Weights } from '@faceling/core/weights';
+import { actionWeight, amplitude, targetWeights, type Gesture, type Weights } from '@redbridge/faceling-core/weights';
 import type { Segment, Session } from '../shared/types';
 
-export * from '@faceling/core/weights';
+export * from '@redbridge/faceling-core/weights';
 
 /**
  * 동작 수준.

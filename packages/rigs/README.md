@@ -1,4 +1,4 @@
-# @faceling/rigs
+# @redbridge/faceling-rigs
 
 Ready-made three.js characters for [Faceling](https://github.com/grape0919/ai-face-faceling/blob/main/README.md). They all share one shape, `Rig`: `body` (what the body can do), `object` (add it to your scene), `view` (a camera position and target that frame it), `apply(frame)` for each frame from `LiveFace.update()`, and an optional `update(dt)`. The faces read the frame's ARKit 52 values; the robot arm reads its body-independent `expression`.
 
@@ -11,7 +11,7 @@ Ready-made three.js characters for [Faceling](https://github.com/grape0919/ai-fa
 | `VrmRig` | Any VRM model loaded with `@pixiv/three-vrm`. Models with ARKit blendshapes show every expression; others fall back to the standard VRM expressions |
 
 ```ts
-import { FacelingRig } from '@faceling/rigs';
+import { FacelingRig } from '@redbridge/faceling-rigs';
 
 const rig = new FacelingRig();
 scene.add(rig.object);
@@ -21,7 +21,7 @@ renderer.setAnimationLoop(() => {
 });
 ```
 
-Each rig declares what its body can do as `rig.body` (a `BodySpec`: the moves it can make and what they mean for that body). `FACE_BODY` and `ARM_BODY` are also exported from `@faceling/rigs/bodies`, which does not import three.js, so a server can use them. Set `director.body = rig.body` and pass the specs to `createJudgeHandler({ bodies })`; the judgment then answers body-neutral intents such as `move.left`, which a face turns into a head turn and the arm into a reach.
+Each rig declares what its body can do as `rig.body` (a `BodySpec`: the moves it can make and what they mean for that body). `FACE_BODY` and `ARM_BODY` are also exported from `@redbridge/faceling-rigs/bodies`, which does not import three.js, so a server can use them. Set `director.body = rig.body` and pass the specs to `createJudgeHandler({ bodies })`; the judgment then answers body-neutral intents such as `move.left`, which a face turns into a head turn and the arm into a reach.
 
 `three` is a peer dependency. `@pixiv/three-vrm` is an optional peer, needed only for `VrmRig`.
 

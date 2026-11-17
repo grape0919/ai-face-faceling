@@ -1,5 +1,5 @@
-import type { BodySpec } from '@faceling/core/body';
-import type { Frame } from '@faceling/core/live';
+import type { BodySpec } from '@redbridge/faceling-core/body';
+import type { Frame } from '@redbridge/faceling-core/live';
 import type { Object3D, Vector3 } from 'three';
 
 /**

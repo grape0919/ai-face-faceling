@@ -1,9 +1,9 @@
 /** 파이프라인과 뷰어가 함께 쓰는 타입. 시간 단위는 모두 초. */
 
-import type { Judgment, Speaker } from '@faceling/core/judgment';
+import type { Judgment, Speaker } from '@redbridge/faceling-core/judgment';
 
-export { clamp, neutralJudgment } from '@faceling/core/judgment';
-export type { Analyzer, AnalyzerInput, Judgment, Speaker } from '@faceling/core/judgment';
+export { clamp, neutralJudgment } from '@redbridge/faceling-core/judgment';
+export type { Analyzer, AnalyzerInput, Judgment, Speaker } from '@redbridge/faceling-core/judgment';
 
 /** 세션 파일 형식 번호. 판단값 구조가 바뀌면 올린다. */
 export const SESSION_FORMAT = 2;

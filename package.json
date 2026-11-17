@@ -8,15 +8,15 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @faceling/core && npm run build -w @faceling/rigs -w @faceling/openai-realtime -w @faceling/server",
+    "build": "npm run build -w @redbridge/faceling-core && npm run build -w @redbridge/faceling-rigs -w @redbridge/faceling-openai-realtime -w @redbridge/faceling-server",
     "test": "npm test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "rt:dev": "npm run dev -w @faceling/realtime",
-    "rt:record": "npm run record -w @faceling/realtime",
-    "rt:pages": "npm run build:pages -w @faceling/realtime",
-    "lab:dev": "npm run dev -w @faceling/offline-lab",
-    "lab:session": "npm run session -w @faceling/offline-lab --",
-    "pack:check": "npm pack --dry-run -w @faceling/core -w @faceling/rigs -w @faceling/openai-realtime -w @faceling/server"
+    "rt:dev": "npm run dev -w @redbridge/faceling-realtime",
+    "rt:record": "npm run record -w @redbridge/faceling-realtime",
+    "rt:pages": "npm run build:pages -w @redbridge/faceling-realtime",
+    "lab:dev": "npm run dev -w @redbridge/faceling-offline-lab",
+    "lab:session": "npm run session -w @redbridge/faceling-offline-lab --",
+    "pack:check": "npm pack --dry-run -w @redbridge/faceling-core -w @redbridge/faceling-rigs -w @redbridge/faceling-openai-realtime -w @redbridge/faceling-server"
   },
   "license": "MIT"
 }

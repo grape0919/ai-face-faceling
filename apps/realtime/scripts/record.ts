@@ -1,15 +1,15 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createJevAnalyzer } from '@faceling/core/analyzers/jev';
-import type { Judgment } from '@faceling/core/judgment';
-import { LiveDirector, LiveFace } from '@faceling/core/live';
-import { ARM_BODY, DOG_BODY, FACE_BODY } from '@faceling/rigs/bodies';
+import { createJevAnalyzer } from '@redbridge/faceling-core/analyzers/jev';
+import type { Judgment } from '@redbridge/faceling-core/judgment';
+import { LiveDirector, LiveFace } from '@redbridge/faceling-core/live';
+import { ARM_BODY, DOG_BODY, FACE_BODY } from '@redbridge/faceling-rigs/bodies';
 import { recordKey, type Recordings } from '../src/recorded';
 import { Simulation, demoLines } from '../src/simulate';
 
 /**
- * 예시 대화를 실제 Jev 로 한 번 돌려 판단을 녹화한다(npm run record -w @faceling/realtime).
+ * 예시 대화를 실제 Jev 로 한 번 돌려 판단을 녹화한다(npm run record -w @redbridge/faceling-realtime).
  * 화면과 똑같은 경로(모의 대화 → LiveDirector → 판단)를 몸과 언어마다 돌리고,
  * 그때 오간 판단을 public/recordings.json 에 남긴다. 정적 페이지가 이 파일을 재생한다.
  * 예시 대화의 글이나 질문을 바꾸면 다시 돌려야 한다. TYPESAFE_API_KEY 가 필요하다.
