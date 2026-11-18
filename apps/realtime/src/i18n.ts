@@ -90,7 +90,7 @@ const KO = {
   'onb.noKeyTitle': '음성 대화 키가 없어요',
   'onb.noKeyDesc': '아래 "API 키 입력"에 OpenAI 키를 넣으면 목소리로 대화할 수 있어요. 지금은 예시 대화로 표정이 움직이는 모습을 볼 수 있어요. 예시 대화의 글은 표정 판단을 위해 Jev 로 전송돼요.',
   'onb.staticTitle': '녹화된 대화를 보여 드려요',
-  'onb.staticDesc': '이 페이지는 서버 없이 돌아가요. 미리 받아 둔 표정 판단을 그대로 재생하고, 소리는 나지 않아요. 대화 내용은 어디에도 전송하지 않아요. 아래 "API 키 입력"에 내 OpenAI 키를 넣으면 이 페이지에서 실시간으로 대화할 수 있어요(음성 대화 1분에 약 0.1~0.15달러, 추정).',
+  'onb.staticDesc': '이 페이지는 서버 없이 돌아가요. 미리 받아 둔 표정 판단을 그대로 재생하고, 소리는 나지 않아요. 대화 내용은 어디에도 전송하지 않아요. 아래 "API 키 입력"에 내 OpenAI 키를 넣으면 이 페이지에서 실시간으로 대화할 수 있어요(음성 대화 1분에 약 0.1~0.3달러, 추정).',
   'onb.staticLiveDesc': '마이크만 있으면 돼요. 음성과 대화 내용은 내 키로 OpenAI 에 직접 전송돼요(음성 대화와 표정 판단). 이 페이지에는 서버가 없어 다른 곳으로는 보내지 않아요.',
   'onb.startVoice': '마이크 허용하고 대화 시작',
 
@@ -128,7 +128,7 @@ const KO = {
 
   'keys.onServer': '비워 두면 서버 .env 의 키를 써요',
   'keys.empty': '키를 붙여 넣으세요',
-  'keys.descStatic': '내 OpenAI 키를 넣으면 이 페이지에서 바로 대화할 수 있어요. 키는 이 브라우저에만 저장되고 OpenAI 로만 직접 보내져요(이 페이지에는 서버가 없어요). 표정 판단도 OpenAI 모델이 해요. 사용 요금은 내 OpenAI 계정에 청구돼요. 음성 대화 1분에 약 0.1~0.15달러로 추정해요(음성 약 0.05~0.08, 받아쓰기 약 0.02, 표정 판단 약 0.02~0.04).',
+  'keys.descStatic': '내 OpenAI 키를 넣으면 이 페이지에서 바로 대화할 수 있어요. 키는 이 브라우저에만 저장되고 OpenAI 로만 직접 보내져요(이 페이지에는 서버가 없어요). 표정 판단도 OpenAI 모델이 해요. 사용 요금은 내 OpenAI 계정에 청구돼요. 음성 대화 1분에 약 0.1~0.3달러로 추정해요(음성, 받아쓰기, 표정 판단을 합친 값). 앞선 대화를 매번 함께 보내서 대화가 길수록 1분 요금이 늘어요.',
   'lang.switch': 'English',
   'lang.label': '화면 언어를 영어로 바꾸기',
 } as const;
@@ -219,7 +219,7 @@ const EN: Record<Key, string> = {
   'onb.noKeyTitle': 'No voice key yet',
   'onb.noKeyDesc': 'Enter your OpenAI key under "Enter API keys" below to talk by voice. For now, the sample conversation shows the face moving. Its text is sent to Jev to judge the expressions.',
   'onb.staticTitle': 'This is a recorded conversation',
-  'onb.staticDesc': 'This page runs without a server. It replays expression judgments recorded in advance, with no sound, and no conversation is sent anywhere. Enter your own OpenAI key under "Enter API keys" below to talk to it live on this page (roughly $0.10–0.15 per minute of voice, estimated).',
+  'onb.staticDesc': 'This page runs without a server. It replays expression judgments recorded in advance, with no sound, and no conversation is sent anywhere. Enter your own OpenAI key under "Enter API keys" below to talk to it live on this page (roughly $0.10–0.30 per minute of voice, estimated).',
   'onb.staticLiveDesc': 'A microphone is all you need. Your voice and the conversation go straight to OpenAI with your key (voice and expression judgment). This page has no server, so nothing is sent anywhere else.',
   'onb.startVoice': 'Allow microphone and start',
 
@@ -257,7 +257,7 @@ const EN: Record<Key, string> = {
 
   'keys.onServer': 'Leave empty to use the key in the server .env',
   'keys.empty': 'Paste your key',
-  'keys.descStatic': 'Enter your own OpenAI key to talk right on this page. It is stored only in this browser and sent straight to OpenAI and nowhere else (this page has no server). An OpenAI model judges the expressions too. Usage is billed to your OpenAI account: an estimated $0.10–0.15 per minute of voice conversation (voice about $0.05–0.08, transcription about $0.02, expression judgment about $0.02–0.04).',
+  'keys.descStatic': 'Enter your own OpenAI key to talk right on this page. It is stored only in this browser and sent straight to OpenAI and nowhere else (this page has no server). An OpenAI model judges the expressions too. Usage is billed to your OpenAI account: an estimated $0.10–0.30 per minute of voice conversation (voice, transcription and expression judgment combined). The earlier conversation is sent along each time, so the per-minute cost grows as the conversation gets longer.',
   'lang.switch': '한국어',
   'lang.label': 'Switch the page to Korean',
 };
