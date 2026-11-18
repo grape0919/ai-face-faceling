@@ -19,3 +19,5 @@ export * from './remote.js';
 export * from './weights.js';
 export { createJevAnalyzer, type JevAnalyzerOptions } from './analyzers/jev.js';
 export { DEFAULT_OPENAI_JUDGE_MODEL, createOpenAIAnalyzer, type OpenAIAnalyzerOptions } from './analyzers/openai.js';
+export { DEFAULT_DECISIONS_MODEL, createDecisionsAnalyzer, type DecisionsAnalyzerOptions } from './analyzers/decisions.js';
+export { createQuestionAnalyzer, type Answer, type Answers, type Ask, type ChoiceQuestion, type Question, type Questions, type ScoreQuestion } from './analyzers/ask.js';

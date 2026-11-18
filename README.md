@@ -22,7 +22,7 @@ Faceling is an expression engine for voice AI. It reads the **text** of the conv
 
 **[Open the demo](https://grape0919.github.io/ai-face-faceling/)** — no install, no keys. It replays a sample conversation with expression judgments recorded from the real judgment model, so you can watch the face, the dog and the faceless robot arm react to the same talk. The replay has no sound, and nothing you do there is sent to a server.
 
-To talk to it right on that page, enter your own OpenAI key under "API keys". The page has no server: your browser connects straight to OpenAI with your key, and an OpenAI model also judges the expressions (Jev cannot be called from a browser). That is slower than Jev, so for the real thing run it locally as described below.
+To talk to it right on that page, enter your own OpenAI key under "API keys". The page has no server: your browser connects straight to OpenAI with your key, and OpenAI's Decisions API also judges the expressions (Jev cannot be called from a browser). To see it with Jev, run it locally as described below.
 
 ## Try it
 
@@ -36,7 +36,7 @@ Copy `.env.example` in the repository root to `.env` and fill in the keys.
 
 | Key | Used for |
 |---|---|
-| `TYPESAFE_API_KEY` | Expression judgment ([Jev](https://docs.typesafe.ai/introduction)). Without it, an OpenAI model judges instead using `OPENAI_API_KEY` (slower: about 1.1 s per clause against 0.2–0.3 s) |
+| `TYPESAFE_API_KEY` | Expression judgment ([Jev](https://docs.typesafe.ai/introduction)). Without it, the OpenAI Decisions API judges instead using `OPENAI_API_KEY` (about 0.33 s per clause against about 0.22 s). You can pick the judgment model under "API keys" on the screen |
 | `OPENAI_API_KEY` | Voice conversation (OpenAI Realtime API). Without it, only the silent demo works |
 
 You can also skip `.env` and enter your keys in the demo screen ("API keys"). They are kept in your browser and sent only to the server on your own PC.
@@ -130,6 +130,46 @@ renderer.setAnimationLoop(() => {
 ```
 
 If your server lives elsewhere, pass the URLs: `createRemoteJudge({ url })` and `new RealtimeConnection(director, callbacks, { sessionUrl, transcriptionSessionUrl, headers })`. The adapter's status messages and default greeting are in Korean for now; pass `greeting` to change what the AI is told to open with.
+
+### Choosing the judgment model
+
+Three judgment models are built in, and they answer the same questions. The server picks the first one it can use (the first with a key), top to bottom.
+
+| Name | What | Key | One clause |
+|---|---|---|---|
+| `jev` | [Jev](https://docs.typesafe.ai/introduction) (TypeSafe AI) | `TYPESAFE_API_KEY` | about 0.22 s |
+| `decisions` | [OpenAI Decisions API](https://developers.openai.com/api/docs/guides/decisions) | `OPENAI_API_KEY` | about 0.33 s |
+| `openai` | An OpenAI chat model (structured output) | `OPENAI_API_KEY` | about 1.1 s |
+
+The times come from one run over the same eight scenes (measure again with `npm run compare -w @redbridge/faceling-realtime -- decisions gpt-5.4-mini@none`). `decisions` returns a probability per option like Jev does; `openai` returns only the option it picked.
+
+To choose per request, pass the name from the browser. If that model has no key the server answers 400 instead of falling through to another model.
+
+```ts
+createRemoteJudge({ judge: 'decisions' });
+```
+
+To plug in another judgment model, write one function that takes a question set and returns the answers. `createQuestionAnalyzer` owns what is asked and how the answers become an expression.
+
+```ts
+import { createQuestionAnalyzer } from '@redbridge/faceling-core';
+import { createJudgeHandler } from '@redbridge/faceling-server';
+
+const mine = createQuestionAnalyzer('mine', 'my-model-1', async (state, questions) => {
+  // state: { role, context, current, following? }
+  // questions: name → { type: 'choice', instructions, criteria: { option: description } }
+  //                 | { type: 'score', instructions, criteria: [descriptions, lowest level first] }
+  const res = await fetch('https://my-model.example/decide', { method: 'POST', body: JSON.stringify({ state, questions }) });
+  // return: name → { type: 'choice', probabilities: { option: 0–1 } } | { type: 'score', score: 0–(levels − 1) }
+  return (await res.json()).answers;
+});
+
+createJudgeHandler({ judges: { mine }, order: ['mine', 'jev', 'decisions'] });
+```
+
+Each value in `judges` is an analyzer, or a function from the request to an analyzer (return `undefined` when it cannot be used). To skip the question framework entirely, implement the `Analyzer` interface (`name`, `version`, `analyze(input)`) yourself.
+
+### Driving your own face
 
 To drive your own face instead of the built-in one, read the frame yourself. `face.update(now, mouth)` returns `{ shapes, head, gaze }`: `shapes` maps ARKit 52 blendshape names to 0–1, `head` holds `pitch`, `yaw` and `roll` in radians, and `gaze` holds `x` and `y` from −1 to 1. For a VRM model, load it with `@pixiv/three-vrm` and use `VrmRig` from `@redbridge/faceling-rigs`.
 
@@ -317,7 +357,7 @@ The diagrams are generated by `docs/diagrams/build.mjs`. After editing it, run `
 
 ## Good to know
 
-- **Jev is the judgment model.** It is a paid API and needs a key. The analyzer is pluggable, and an LLM-based analyzer for comparison lives in `apps/offline-lab` (not yet run against a real key).
+- **Jev is the default judgment model.** It is a paid API and needs a key. The OpenAI Decisions API and an OpenAI chat model can judge too, and you can plug in another model (see "Choosing the judgment model"). Also, an LLM-based analyzer for comparison lives in `apps/offline-lab` (not yet run against a real key).
 - **Tone of voice is not read.** Information that exists only in the sound, such as sarcasm in a voice whose words are polite, is not reflected. Irony that shows in the surrounding text is caught.
 - **Conversation text is sent to the judgment model,** including transcripts of what the user says. Tell your users if you ship this.
 - **Experimental.** Tested with Korean conversations only, and the mapping coefficients are first drafts. What has not been verified is noted in each folder's README.

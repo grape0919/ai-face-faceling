@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJevAnalyzer } from '@redbridge/faceling-core/analyzers/jev';
+import { createDecisionsAnalyzer } from '@redbridge/faceling-core/analyzers/decisions';
 import { createOpenAIAnalyzer } from '@redbridge/faceling-core/analyzers/openai';
 import type { Analyzer, AnalyzerInput, Judgment } from '@redbridge/faceling-core/judgment';
 import { REGION_KEYS, topAction } from '@redbridge/faceling-core/regions';
@@ -8,8 +9,8 @@ import { ARM_BODY, FACE_BODY } from '@redbridge/faceling-rigs/bodies';
 
 /**
  * Jev 와 OpenAI 판단 모델을 같은 문장으로 나란히 돌려, 고른 동작과 걸린 시간을 비교한다.
- *   npm run compare -w @redbridge/faceling-realtime -- gpt-4.1-mini gpt-6-luna@none
- * 모델 이름 뒤에 @값 을 붙이면 reasoning_effort 를 바꾼다. 추론 모델은 가장 낮은 값을 줘야 빠르다.
+ *   npm run compare -w @redbridge/faceling-realtime -- decisions gpt-5.4-mini@none
+ * decisions 는 OpenAI Decisions API 다. 그 밖의 이름은 채팅 모델로 묻고, 이름 뒤에 @값 을 붙이면 reasoning_effort 를 바꾼다. 추론 모델은 가장 낮은 값을 줘야 빠르다.
  * TYPESAFE_API_KEY 와 OPENAI_API_KEY 가 필요하다.
  */
 
@@ -46,6 +47,10 @@ const picks = (j: Judgment): string =>
 
 const judges: Array<[string, Analyzer]> = [['jev', createJevAnalyzer()]];
 for (const arg of process.argv.slice(2)) {
+  if (arg === 'decisions') {
+    judges.push([arg, createDecisionsAnalyzer()]);
+    continue;
+  }
   const [model, effort] = arg.split('@');
   judges.push([arg, createOpenAIAnalyzer({ model, ...(effort !== undefined && { reasoningEffort: effort }) })]);
 }
