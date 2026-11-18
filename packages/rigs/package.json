@@ -1,6 +1,6 @@
 {
   "name": "@redbridge/faceling-rigs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ready-made three.js faces for Faceling: the Faceling face, a robot and a dog (CC BY-NC 4.0 designs) and a VRM adapter",
   "keywords": [
     "faceling",
@@ -74,7 +74,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@redbridge/faceling-core": "^0.1.0"
+    "@redbridge/faceling-core": "^0.2.0"
   },
   "peerDependencies": {
     "three": ">=0.187.0",
