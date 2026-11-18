@@ -22,7 +22,7 @@ Faceling 은 AI 가 하는 말과 사용자가 하는 말의 **텍스트**를 �
 
 **[데모 열기](https://grape0919.github.io/ai-face-faceling/)** — 설치도 키도 필요 없다. 실제 판단 모델에서 받아 둔 표정 판단으로 예시 대화를 재생해, 같은 대화에 얼굴과 강아지, 얼굴 없는 로봇팔이 어떻게 반응하는지 볼 수 있다. 재생에는 소리가 없고, 그 페이지에서 한 일은 서버로 가지 않는다.
 
-그 페이지에서 바로 말을 걸어 보려면 "API 키"에 내 OpenAI 키를 넣는다. 페이지에는 서버가 없어서 브라우저가 내 키로 OpenAI 에 직접 붙고, 표정 판단도 OpenAI 모델이 한다(Jev 는 브라우저에서 부를 수 없다). Jev 보다 느리므로 제대로 보려면 아래대로 내 PC 에서 실행한다.
+그 페이지에서 바로 말을 걸어 보려면 "API 키"에 내 OpenAI 키를 넣는다. 페이지에는 서버가 없어서 브라우저가 내 키로 OpenAI 에 직접 붙고, 표정 판단도 OpenAI 의 Decisions API 가 한다(Jev 는 브라우저에서 부를 수 없다). Jev 로 보려면 아래대로 내 PC 에서 실행한다.
 
 ## 바로 해 보기
 
@@ -36,7 +36,7 @@ npm install
 
 | 키 | 용도 |
 |---|---|
-| `TYPESAFE_API_KEY` | 표정 판단([Jev](https://docs.typesafe.ai/introduction)). 없으면 `OPENAI_API_KEY` 로 OpenAI 모델이 대신 판단한다(느리다: 절 하나에 약 1.1초, Jev 는 0.2~0.3초) |
+| `TYPESAFE_API_KEY` | 표정 판단([Jev](https://docs.typesafe.ai/introduction)). 없으면 `OPENAI_API_KEY` 로 OpenAI Decisions API 가 대신 판단한다(절 하나에 약 0.33초, Jev 는 약 0.22초). 화면의 "API 키"에서 판단 모델을 고를 수 있다 |
 | `OPENAI_API_KEY` | 음성 대화(OpenAI Realtime API). 없으면 소리 없는 모의 대화만 된다 |
 
 `.env` 대신 데모 화면의 "API 키"에 내 키를 넣어도 된다. 키는 브라우저에만 저장되고 내 PC 의 서버로만 보내진다.
@@ -130,6 +130,46 @@ renderer.setAnimationLoop(() => {
 ```
 
 서버 주소가 다르면 넘겨 준다. `createRemoteJudge({ url })`, `new RealtimeConnection(director, callbacks, { sessionUrl, transcriptionSessionUrl, headers })`. AI 가 먼저 인사할 때 받는 지시는 `greeting` 옵션으로 바꾼다.
+
+### 판단 모델 고르기
+
+판단 모델은 세 가지가 들어 있고, 같은 질문에 답한다. 서버는 쓸 수 있는(키가 있는) 것을 위에서부터 고른다.
+
+| 이름 | 무엇 | 키 | 절 하나 판단 |
+|---|---|---|---|
+| `jev` | [Jev](https://docs.typesafe.ai/introduction) (TypeSafe AI) | `TYPESAFE_API_KEY` | 약 0.22초 |
+| `decisions` | [OpenAI Decisions API](https://developers.openai.com/api/docs/guides/decisions) | `OPENAI_API_KEY` | 약 0.33초 |
+| `openai` | OpenAI 채팅 모델(구조화 출력) | `OPENAI_API_KEY` | 약 1.1초 |
+
+시간은 같은 8개 장면을 한 번씩 재 본 값이다(`npm run compare -w @redbridge/faceling-realtime -- decisions gpt-5.4-mini@none` 로 다시 잴 수 있다). `decisions` 는 Jev 처럼 선택지마다 확률을 주고, `openai` 는 고른 하나만 준다.
+
+요청마다 고르려면 브라우저에서 이름을 넘긴다. 그 모델의 키가 없으면 다른 모델로 넘어가지 않고 400 으로 알린다.
+
+```ts
+createRemoteJudge({ judge: 'decisions' });
+```
+
+다른 판단 모델을 붙이려면 질문 세트 하나를 받아 답을 돌려주는 함수만 쓰면 된다. 무엇을 묻고 답을 어떻게 표정으로 옮기는지는 `createQuestionAnalyzer` 가 맡는다.
+
+```ts
+import { createQuestionAnalyzer } from '@redbridge/faceling-core';
+import { createJudgeHandler } from '@redbridge/faceling-server';
+
+const mine = createQuestionAnalyzer('mine', 'my-model-1', async (state, questions) => {
+  // state: { role, context, current, following? }
+  // questions: 이름 → { type: 'choice', instructions, criteria: { 선택지: 설명 } }
+  //                 | { type: 'score', instructions, criteria: [낮은 단계부터의 설명] }
+  const res = await fetch('https://my-model.example/decide', { method: 'POST', body: JSON.stringify({ state, questions }) });
+  // 돌려줄 것: 이름 → { type: 'choice', probabilities: { 선택지: 0~1 } } | { type: 'score', score: 0~(단계 수 - 1) }
+  return (await res.json()).answers;
+});
+
+createJudgeHandler({ judges: { mine }, order: ['mine', 'jev', 'decisions'] });
+```
+
+`judges` 의 값은 분석기 그대로이거나, 요청을 받아 분석기를 돌려주는 함수다(쓸 수 없으면 `undefined`). 질문 틀 없이 처음부터 만들려면 `Analyzer` 인터페이스(`name`, `version`, `analyze(input)`)를 직접 구현한다.
+
+### 내 얼굴 움직이기
 
 기본 얼굴 대신 내 얼굴을 움직이려면 프레임을 직접 읽는다. `face.update(now, mouth)` 는 `{ shapes, head, gaze }` 를 돌려준다. `shapes` 는 ARKit 52 blendshape 이름별 0~1 값, `head` 는 라디안 단위의 `pitch`, `yaw`, `roll`, `gaze` 는 -1~1 의 `x`, `y` 다. VRM 모델은 `@pixiv/three-vrm` 으로 불러와 `@redbridge/faceling-rigs` 의 `VrmRig` 에 넣는다.
 
@@ -315,7 +355,7 @@ AI 응답의 글은 소리보다 1~2초 먼저 도착하므로, 대부분의 구
 
 ## 알아 둘 점
 
-- **판단 모델로 Jev 를 쓴다.** 유료 API 이고 키가 필요하다. 분석기는 갈아 끼울 수 있게 되어 있고, 비교용 LLM 분석기 코드가 `apps/offline-lab` 에 있다(실제 키로 돌려 보지는 않았다).
+- **판단 모델은 Jev 가 기본이다.** 유료 API 이고 키가 필요하다. OpenAI Decisions API 와 OpenAI 채팅 모델로도 판단할 수 있고, 다른 모델도 붙일 수 있다("판단 모델 고르기"). 그 밖에 비교용 LLM 분석기 코드가 `apps/offline-lab` 에 있다(실제 키로 돌려 보지는 않았다).
 - **말투는 읽지 않는다.** 글자로는 칭찬인데 비꼬는 말투인 경우처럼 소리에만 있는 정보는 반영되지 않는다. 앞뒤 맥락으로 드러나는 반어는 잡는다.
 - **대화 텍스트가 판단 모델로 전송된다.** 사용자 말의 전사도 포함된다. 서비스에 넣을 때는 사용자에게 알려야 한다.
 - **실험 단계다.** 한국어 대화로만 시험했고, 표정 대응의 계수는 초안이다. 확인하지 못한 것은 각 폴더의 README 에 적어 두었다.

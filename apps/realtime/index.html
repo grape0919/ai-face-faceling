@@ -312,6 +312,8 @@
       #keys label b { color: var(--text); font-weight: 600; }
       #keys input { height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-1); font-family: var(--mono); font-size: 13px; outline: none; }
       #keys input:focus { border-color: var(--accent); }
+      #keys select { height: 44px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text); font-size: 14px; outline: none; }
+      #keys select:focus { border-color: var(--accent); }
       #keys .row { display: flex; align-items: center; gap: 8px; }
       #keys .row .btn-primary { height: 44px; padding: 0 24px; font-size: 15px; margin-left: auto; }
 
@@ -686,6 +688,7 @@
         <p id="keys-desc">.env 대신 내 키를 넣어 쓸 수 있어요. 키는 이 브라우저에만 저장되고, 내 PC 의 서버로만 보내져 OpenAI 와 TypeSafe 에 전달돼요. 파일이나 기록에는 남지 않아요. TypeSafe 키가 없으면 OpenAI 모델이 표정 판단을 대신해요.</p>
         <label><span id="l-key-openai"><b>OpenAI API 키</b> · 음성 대화</span><input id="key-openai" type="password" autocomplete="off" spellcheck="false" /></label>
         <label id="keys-jev-field"><span id="l-key-jev"><b>TypeSafe API 키</b> · 표정 판단(Jev)</span><input id="key-jev" type="password" autocomplete="off" spellcheck="false" /></label>
+        <label><span id="l-judge-choice"><b>표정 판단 모델</b> · 고른 모델의 키가 없으면 자동으로 정해요</span><select id="judge-choice"></select></label>
         <p id="keys-note">바꾼 키는 다음 연결부터 쓰여요. 표정 판단은 바로 바뀌어요.</p>
         <div class="row">
           <button type="button" class="btn-text" id="keys-clear">지우기</button>

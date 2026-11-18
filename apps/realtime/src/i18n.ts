@@ -40,7 +40,13 @@ const KO = {
   'status.ready': '준비됨 ({model})',
   'status.noOpenai': 'OpenAI 키가 없어 음성 대화는 할 수 없습니다.',
   'status.static': '녹화된 판단을 재생하는 페이지입니다.',
-  'status.openaiJudge': '표정 판단은 OpenAI 모델이 대신합니다.',
+  'status.openaiJudge': '표정 판단은 OpenAI 채팅 모델이 합니다(느림).',
+  'status.decisionsJudge': '표정 판단은 OpenAI Decisions 가 합니다.',
+  'judge.auto': '자동 · Jev, 없으면 OpenAI Decisions',
+  'judge.autoStatic': '자동 · OpenAI Decisions',
+  'judge.jev': 'Jev (TypeSafe) · 가장 빠름',
+  'judge.decisions': 'OpenAI Decisions',
+  'judge.openai': 'OpenAI 채팅 모델 · 느림',
   'notice.openaiJudgeFailed': 'OpenAI 에 표정 판단을 묻지 못했어요. "API 키"에 넣은 키가 맞는지, 인터넷이 연결돼 있는지 확인해 주세요.',
 
   'mode.off': '연결 전',
@@ -101,8 +107,8 @@ const KO = {
   'perm.needed': '필수 · 말하면 바로 반응해요',
   'perm.noJudge': '표정 판단 키 없음',
   'perm.noJudgeDesc': '아래 "API 키 입력"에 TypeSafe 키(Jev)나 OpenAI 키를 넣으세요. 없으면 얼굴이 기본 동작만 해요.',
-  'perm.openaiJudge': '표정 판단 · OpenAI 모델',
-  'perm.openaiJudgeDesc': 'Jev 키가 없어 OpenAI 모델이 대신 판단해요. Jev 보다 느려서 표정이 조금 늦을 수 있어요.',
+  'perm.openaiJudge': '표정 판단 · OpenAI 채팅 모델',
+  'perm.openaiJudgeDesc': 'OpenAI 채팅 모델이 판단해요. Jev 나 OpenAI Decisions 보다 느려서 표정이 조금 늦을 수 있어요.',
 
   'stats.judged': '판단한 절',
   'stats.missed': '놓친 절',
@@ -128,7 +134,7 @@ const KO = {
 
   'keys.onServer': '비워 두면 서버 .env 의 키를 써요',
   'keys.empty': '키를 붙여 넣으세요',
-  'keys.descStatic': '내 OpenAI 키를 넣으면 이 페이지에서 바로 대화할 수 있어요. 키는 이 브라우저에만 저장되고 OpenAI 로만 직접 보내져요(이 페이지에는 서버가 없어요). 표정 판단도 OpenAI 모델이 해요. 사용 요금은 내 OpenAI 계정에 청구돼요. 음성 대화 1분에 약 0.1~0.3달러로 추정해요(음성, 받아쓰기, 표정 판단을 합친 값). 앞선 대화를 매번 함께 보내서 대화가 길수록 1분 요금이 늘어요.',
+  'keys.descStatic': '내 OpenAI 키를 넣으면 이 페이지에서 바로 대화할 수 있어요. 키는 이 브라우저에만 저장되고 OpenAI 로만 직접 보내져요(이 페이지에는 서버가 없어요). 표정 판단도 OpenAI(Decisions API)가 해요. 사용 요금은 내 OpenAI 계정에 청구돼요. 음성 대화 1분에 약 0.1~0.3달러로 추정해요(음성, 받아쓰기, 표정 판단을 합친 값). 앞선 대화를 매번 함께 보내서 대화가 길수록 1분 요금이 늘어요.',
   'lang.switch': 'English',
   'lang.label': '화면 언어를 영어로 바꾸기',
 } as const;
@@ -169,7 +175,13 @@ const EN: Record<Key, string> = {
   'status.ready': 'Ready ({model})',
   'status.noOpenai': 'The OpenAI key is missing, so voice conversation is off.',
   'status.static': 'This page replays recorded judgments.',
-  'status.openaiJudge': 'An OpenAI model is judging the expressions in place of Jev.',
+  'status.openaiJudge': 'An OpenAI chat model is judging the expressions (slow).',
+  'status.decisionsJudge': 'OpenAI Decisions is judging the expressions.',
+  'judge.auto': 'Automatic · Jev, otherwise OpenAI Decisions',
+  'judge.autoStatic': 'Automatic · OpenAI Decisions',
+  'judge.jev': 'Jev (TypeSafe) · fastest',
+  'judge.decisions': 'OpenAI Decisions',
+  'judge.openai': 'OpenAI chat model · slow',
   'notice.openaiJudgeFailed': 'Could not ask OpenAI to judge the expression. Check that the key under "API keys" is correct and that you are online.',
 
   'mode.off': 'Not connected',
@@ -230,8 +242,8 @@ const EN: Record<Key, string> = {
   'perm.needed': 'Required · it reacts as soon as you speak',
   'perm.noJudge': 'No expression key',
   'perm.noJudgeDesc': 'Enter a TypeSafe key (Jev) or an OpenAI key under "Enter API keys" below. Without one the face only does its idle motion.',
-  'perm.openaiJudge': 'Expression judgment · OpenAI model',
-  'perm.openaiJudgeDesc': 'There is no Jev key, so an OpenAI model judges instead. It is slower than Jev, so expressions may come a little late.',
+  'perm.openaiJudge': 'Expression judgment · OpenAI chat model',
+  'perm.openaiJudgeDesc': 'An OpenAI chat model judges. It is slower than Jev or OpenAI Decisions, so expressions may come a little late.',
 
   'stats.judged': 'Clauses judged',
   'stats.missed': 'Clauses missed',
@@ -257,7 +269,7 @@ const EN: Record<Key, string> = {
 
   'keys.onServer': 'Leave empty to use the key in the server .env',
   'keys.empty': 'Paste your key',
-  'keys.descStatic': 'Enter your own OpenAI key to talk right on this page. It is stored only in this browser and sent straight to OpenAI and nowhere else (this page has no server). An OpenAI model judges the expressions too. Usage is billed to your OpenAI account: an estimated $0.10–0.30 per minute of voice conversation (voice, transcription and expression judgment combined). The earlier conversation is sent along each time, so the per-minute cost grows as the conversation gets longer.',
+  'keys.descStatic': 'Enter your own OpenAI key to talk right on this page. It is stored only in this browser and sent straight to OpenAI and nowhere else (this page has no server). OpenAI (the Decisions API) judges the expressions too. Usage is billed to your OpenAI account: an estimated $0.10–0.30 per minute of voice conversation (voice, transcription and expression judgment combined). The earlier conversation is sent along each time, so the per-minute cost grows as the conversation gets longer.',
   'lang.switch': '한국어',
   'lang.label': 'Switch the page to Korean',
 };
@@ -318,6 +330,7 @@ const STATIC: Array<[string, Slot, string]> = [
   ['#sim-demo', 'text', 'Play the sample conversation'],
   ['#sim-stop', 'text', 'Stop'],
   ['#l-voice', 'text', 'Voice '],
+  ['#l-judge-choice', 'html', '<b>Expression judge</b> · falls back to automatic when the chosen one has no key'],
   ['#l-live-reactions', 'text', ' React while the user is still talking'],
   ['#l-channel-mode', 'text', ' Judge per-part values (experimental)'],
   ['#l-greet', 'text', ' AI greets first on connect'],

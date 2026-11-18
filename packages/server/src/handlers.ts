@@ -1,3 +1,4 @@
+import { createDecisionsAnalyzer } from '@redbridge/faceling-core/analyzers/decisions';
 import { createJevAnalyzer } from '@redbridge/faceling-core/analyzers/jev';
 import { createOpenAIAnalyzer } from '@redbridge/faceling-core/analyzers/openai';
 import type { Analyzer, AnalyzerInput, Judgment } from '@redbridge/faceling-core/judgment';
@@ -197,18 +198,30 @@ export function createTranscriptionSessionHandler(options: TranscriptionSessionH
 // ── 절 하나의 판단 ─────────────────────────────────────────
 
 export interface JudgeHandlerOptions {
-  /** 판단에 쓸 분석기. 없으면 Jev 분석기를 처음 요청 때 만든다. */
+  /** 판단에 쓸 분석기. 주면 늘 이것만 쓴다(아래의 고르기를 모두 건너뛴다). */
   analyzer?: Analyzer;
+  /**
+   * 이름으로 고를 수 있는 판단 모델을 더하거나 바꾼다. 이름 → 분석기, 또는 요청마다 분석기를 정하는 함수
+   * (쓸 수 없으면 undefined 를 돌려준다). 기본으로 'jev', 'decisions', 'openai' 가 들어 있고, 같은 이름을 주면 그것을 덮는다.
+   * 새 판단 모델은 @redbridge/faceling-core 의 createQuestionAnalyzer() 로 만들어 여기에 넣는다.
+   */
+  judges?: Record<string, JudgeSource>;
+  /**
+   * 요청이 판단 모델을 고르지 않았을 때 시도할 순서. 쓸 수 있는(키가 있는) 첫 번째가 판단한다.
+   * 없으면 judges 로 더한 것들, 그다음 DEFAULT_JUDGE_ORDER.
+   */
+  order?: string[];
   /** Jev 를 쓸 때의 TypeSafe API 키, 또는 요청마다 키를 정하는 함수. 없으면 환경 변수 TYPESAFE_API_KEY. */
   apiKey?: ApiKeySource;
   /** Jev 모델. 없으면 JEV_MODEL, 그것도 없으면 'jev-latest'. */
   model?: string;
   /**
-   * Jev 키가 없을 때 대신 판단할 OpenAI 모델의 키, 또는 요청마다 키를 정하는 함수. 없으면 환경 변수 OPENAI_API_KEY.
-   * Jev 키가 있으면 늘 Jev 가 판단한다. OpenAI 모델은 같은 질문에 답하지만 Jev 보다 느리다.
+   * OpenAI 로 판단할 때('decisions', 'openai')의 키, 또는 요청마다 키를 정하는 함수. 없으면 환경 변수 OPENAI_API_KEY.
    */
   openaiApiKey?: ApiKeySource;
-  /** 대신 판단할 OpenAI 모델. 없으면 OPENAI_JUDGE_MODEL, 그것도 없으면 @redbridge/faceling-core 의 기본값. */
+  /** 'decisions' 가 쓸 Decisions API 모델. 없으면 OPENAI_DECISIONS_MODEL, 그것도 없으면 @redbridge/faceling-core 의 기본값. */
+  decisionsModel?: string;
+  /** 'openai'(채팅 모델)가 쓸 모델. 없으면 OPENAI_JUDGE_MODEL, 그것도 없으면 @redbridge/faceling-core 의 기본값. */
   openaiModel?: string;
   /**
    * 판단에 쓸 수 있는 몸 명세들(예: @redbridge/faceling-rigs 의 FACE_BODY, ARM_BODY). 브라우저가 본문의 body 로 이름을 보내면
@@ -219,27 +232,67 @@ export interface JudgeHandlerOptions {
   onJudgment?: (input: AnalyzerInput, judgment: Judgment, ms: number) => void | Promise<void>;
 }
 
+/** 판단 모델 하나를 주는 방법. 분석기 그대로, 또는 요청마다 정하는 함수(쓸 수 없으면 undefined). */
+export type JudgeSource = Analyzer | ((request: Request) => Analyzer | undefined);
+
+/**
+ * 요청이 고르지 않았을 때의 순서: Jev(TypeSafe), OpenAI Decisions API, OpenAI 채팅 모델.
+ * 뒤의 둘은 같은 OpenAI 키를 쓰므로, 고르지 않으면 채팅 모델까지 가는 일은 없다.
+ */
+export const DEFAULT_JUDGE_ORDER = ['jev', 'decisions', 'openai'];
+
 /**
  * 브라우저 대신 분석기를 부른다(POST, 본문은 AnalyzerInput). 응답은 { judgment, ms, analyzer }.
- * 분석기는 Jev 이고, Jev 키가 없고 OpenAI 키가 있으면 OpenAI 모델이 대신한다(analyzer 가 'jev' 또는 'openai').
+ * 본문의 judge 로 판단 모델의 이름을 고를 수 있다('jev', 'decisions', 'openai', 또는 judges 로 더한 이름).
+ * 고르지 않으면 order 순서에서 쓸 수 있는 첫 번째가 판단한다. 응답의 analyzer 가 실제로 판단한 것의 이름이다.
  * 브라우저 쪽은 @redbridge/faceling-core 의 createRemoteJudge() 로 이 주소를 부른다.
  */
 export function createJudgeHandler(options: JudgeHandlerOptions = {}): FetchHandler {
   // 분석기는 키마다 하나씩 만들어 둔다(질문 세트를 다시 만들지 않게). 요청마다 키가 달라도 끝없이 쌓이지 않게 개수를 묶는다.
   const analyzers = new Map<string, Analyzer>();
-  const getAnalyzer = (request: Request): Analyzer => {
-    if (options.analyzer) return options.analyzer;
-    const jevKey = resolveKey(options.apiKey, request, 'TYPESAFE_API_KEY');
-    const openaiKey = jevKey ? undefined : resolveKey(options.openaiApiKey, request, 'OPENAI_API_KEY');
-    if (!jevKey && !openaiKey) throw new HttpError(400, '판단에 쓸 키가 없습니다. TYPESAFE_API_KEY(Jev) 나 OPENAI_API_KEY 를 환경 변수나 옵션으로 넘기세요.');
-    const id = jevKey ? `jev:${jevKey}` : `openai:${openaiKey}`;
+  const cached = (id: string, make: () => Analyzer): Analyzer => {
     let analyzer = analyzers.get(id);
     if (!analyzer) {
       if (analyzers.size >= MAX_ANALYZERS) analyzers.delete(analyzers.keys().next().value as string);
-      analyzer = jevKey ? createJevAnalyzer({ apiKey: jevKey, model: options.model }) : createOpenAIAnalyzer({ apiKey: openaiKey, model: options.openaiModel });
+      analyzer = make();
       analyzers.set(id, analyzer);
     }
     return analyzer;
+  };
+  const openaiKey = (request: Request): string | undefined => resolveKey(options.openaiApiKey, request, 'OPENAI_API_KEY');
+  const judges: Record<string, JudgeSource> = {
+    jev: (request) => {
+      const key = resolveKey(options.apiKey, request, 'TYPESAFE_API_KEY');
+      return key ? cached(`jev:${key}`, () => createJevAnalyzer({ apiKey: key, model: options.model })) : undefined;
+    },
+    decisions: (request) => {
+      const key = openaiKey(request);
+      return key ? cached(`decisions:${key}`, () => createDecisionsAnalyzer({ apiKey: key, model: options.decisionsModel })) : undefined;
+    },
+    openai: (request) => {
+      const key = openaiKey(request);
+      return key ? cached(`openai:${key}`, () => createOpenAIAnalyzer({ apiKey: key, model: options.openaiModel })) : undefined;
+    },
+    ...options.judges,
+  };
+  const order = options.order ?? [...Object.keys(options.judges ?? {}), ...DEFAULT_JUDGE_ORDER.filter((name) => !options.judges?.[name])];
+  const resolve = (name: string, request: Request): Analyzer | undefined => {
+    const source = Object.hasOwn(judges, name) ? judges[name] : undefined;
+    return typeof source === 'function' ? source(request) : source;
+  };
+  const getAnalyzer = (request: Request, wanted: string): Analyzer => {
+    if (options.analyzer) return options.analyzer;
+    if (wanted) {
+      if (!Object.hasOwn(judges, wanted)) throw new HttpError(400, `모르는 판단 모델입니다: ${wanted}. 쓸 수 있는 이름: ${Object.keys(judges).join(', ')}`);
+      const analyzer = resolve(wanted, request);
+      if (!analyzer) throw new HttpError(400, `판단 모델 ${wanted} 에 쓸 키가 없습니다.`);
+      return analyzer;
+    }
+    for (const name of order) {
+      const analyzer = resolve(name, request);
+      if (analyzer) return analyzer;
+    }
+    throw new HttpError(400, '판단에 쓸 키가 없습니다. TYPESAFE_API_KEY(Jev) 나 OPENAI_API_KEY 를 환경 변수나 옵션으로 넘기세요.');
   };
 
   return postOnly(async (request) => {
@@ -255,7 +308,7 @@ export function createJudgeHandler(options: JudgeHandlerOptions = {}): FetchHand
     };
     if (!input.current.trim()) return json(400, { error: 'current 가 비어 있습니다' });
     const started = performance.now();
-    const analyzer = getAnalyzer(request);
+    const analyzer = getAnalyzer(request, text(body.judge, 40));
     const judgment = await analyzer.analyze(input);
     const ms = Math.round(performance.now() - started);
     if (options.onJudgment) {

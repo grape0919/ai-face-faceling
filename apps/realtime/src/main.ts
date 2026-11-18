@@ -1,3 +1,4 @@
+import { createDecisionsAnalyzer } from '@redbridge/faceling-core/analyzers/decisions';
 import { createOpenAIAnalyzer } from '@redbridge/faceling-core/analyzers/openai';
 import type { Analyzer, AnalyzerInput, Judgment } from '@redbridge/faceling-core/judgment';
 import type { TurnState } from '@redbridge/faceling-core/compositor';
@@ -68,11 +69,21 @@ const keyHeaders = (): Record<string, string> => ({
 const serverKeys = { openai: false, jev: true };
 /** 정적 페이지에 키가 없어, 녹화된 예시 대화만 재생하는 상태인지 */
 const replayOnly = (): boolean => STATIC_PAGE && !keys.openai;
-/** 지금 표정 판단을 누가 하는지. Jev 키가 있으면 Jev, 없고 OpenAI 키가 있으면 OpenAI 모델이 대신한다. */
-function judgedBy(): 'jev' | 'openai' | 'recorded' | 'none' {
-  if (STATIC_PAGE) return keys.openai ? 'openai' : 'recorded';
-  if (serverKeys.jev || keys.jev) return 'jev';
-  return serverKeys.openai || keys.openai ? 'openai' : 'none';
+/** 고를 수 있는 판단 모델. 이 순서가 "자동"일 때의 우선순위다: Jev, OpenAI Decisions API, OpenAI 채팅 모델. */
+const JUDGES = ['jev', 'decisions', 'openai'] as const;
+type JudgeName = (typeof JUDGES)[number];
+const isJudge = (v: string | null | undefined): v is JudgeName => JUDGES.includes(v as JudgeName);
+const savedJudge = params.get('judge') ?? store.get('judge');
+/** 사용자가 고른 판단 모델. 'auto' 면 쓸 수 있는 것 가운데 우선순위가 가장 높은 것. */
+let judgeChoice: JudgeName | 'auto' = isJudge(savedJudge) ? savedJudge : 'auto';
+/** 그 판단 모델을 지금 쓸 수 있는지(키가 있는지). 정적 페이지에서는 Jev 를 부를 수 없다. */
+const canJudge = (name: JudgeName): boolean =>
+  name === 'jev' ? !STATIC_PAGE && (serverKeys.jev || Boolean(keys.jev)) : Boolean(keys.openai) || (!STATIC_PAGE && serverKeys.openai);
+/** 지금 표정 판단을 누가 하는지. 고른 모델을 쓸 수 없으면 자동으로 정한다. */
+function judgedBy(): JudgeName | 'recorded' | 'none' {
+  if (replayOnly()) return 'recorded';
+  if (judgeChoice !== 'auto' && canJudge(judgeChoice)) return judgeChoice;
+  return JUDGES.find(canJudge) ?? 'none';
 }
 
 // ── 얼굴 종류 ─────────────────────────────────────────────
@@ -283,10 +294,14 @@ const RECORDED_DELAY_MS = 250;
 /** 녹화가 있는 예시 대화를 재생하는 중인지. 정적 페이지는 키가 있어도 이 대화만은 녹화로 재생한다. */
 let playingSample = false;
 
-/** 정적 페이지에서 사용자의 키로 OpenAI 모델에 직접 묻는 분석기. 키가 바뀌면 새로 만든다. */
-let browserAnalyzer: { key: string; analyzer: Analyzer } | null = null;
+/** 정적 페이지에서 사용자의 키로 OpenAI 에 직접 묻는 분석기. 키나 고른 판단 모델이 바뀌면 새로 만든다. */
+let browserAnalyzer: { id: string; analyzer: Analyzer } | null = null;
 async function judgeInBrowser(input: AnalyzerInput): Promise<Judgment> {
-  if (browserAnalyzer?.key !== keys.openai) browserAnalyzer = { key: keys.openai, analyzer: createOpenAIAnalyzer({ apiKey: keys.openai }) };
+  const chat = judgedBy() === 'openai';
+  const id = `${chat ? 'openai' : 'decisions'}:${keys.openai}`;
+  if (browserAnalyzer?.id !== id) {
+    browserAnalyzer = { id, analyzer: chat ? createOpenAIAnalyzer({ apiKey: keys.openai }) : createDecisionsAnalyzer({ apiKey: keys.openai }) };
+  }
   try {
     return await browserAnalyzer.analyzer.analyze(input);
   } catch (err) {
@@ -307,11 +322,12 @@ async function judge(input: AnalyzerInput): Promise<Judgment> {
     const [all] = await Promise.all([recordings, new Promise((r) => setTimeout(r, RECORDED_DELAY_MS))]);
     return findRecorded(all, input);
   }
+  const by = judgedBy();
   const res = await fetch('/api/judge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...keyHeaders() },
     // 몸 명세는 이름만 보낸다. 설명은 서버가 가진 명세에서 나온다.
-    body: JSON.stringify({ ...input, body: input.body?.name }),
+    body: JSON.stringify({ ...input, body: input.body?.name, judge: isJudge(by) ? by : undefined }),
   });
   const body = (await res.json()) as { judgment?: Judgment; error?: string };
   if (!res.ok || !body.judgment) {
@@ -1015,7 +1031,7 @@ function bindControls(): void {
   for (const b of document.querySelectorAll<HTMLElement>('.keys-open')) b.addEventListener('click', openKeys);
   $('keys-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    saveKeys($<HTMLInputElement>('key-openai').value, $<HTMLInputElement>('key-jev').value);
+    saveKeys($<HTMLInputElement>('key-openai').value, $<HTMLInputElement>('key-jev').value, $<HTMLSelectElement>('judge-choice').value);
   });
   $('keys-clear').addEventListener('click', () => saveKeys('', ''));
   $('keys-cancel').addEventListener('click', () => $<HTMLDialogElement>('keys').close());
@@ -1057,7 +1073,8 @@ function syncKeys(): void {
   if (!STATIC_PAGE) connectionOptions.headers = keyHeaders();
   setNotice(by === 'none' ? t('notice.noJev') : '');
   const ready = state.config.openai ? t('status.ready', { model: state.config.model }) : t(STATIC_PAGE ? 'status.static' : 'status.noOpenai');
-  setStatus(by === 'openai' ? `${ready} ${t('status.openaiJudge')}` : ready);
+  // OpenAI Decisions 는 Jev 에 가까운 속도라 경고 없이 누가 판단하는지만 알린다
+  setStatus(by === 'openai' ? `${ready} ${t('status.openaiJudge')}` : by === 'decisions' ? `${ready} ${t('status.decisionsJudge')}` : ready);
   lastRender = '';
   refresh();
 }
@@ -1073,14 +1090,24 @@ function openKeys(): void {
     input.value = value;
     input.placeholder = t(onServer ? 'keys.onServer' : 'keys.empty');
   }
+  // 판단 모델 고르기. 정적 페이지에서는 Jev 를 부를 수 없어 뺀다.
+  const choice = $<HTMLSelectElement>('judge-choice');
+  choice.innerHTML = (['auto', ...JUDGES] as const)
+    .filter((name) => !(STATIC_PAGE && name === 'jev'))
+    .map((name) => `<option value="${name}">${t(STATIC_PAGE && name === 'auto' ? 'judge.autoStatic' : `judge.${name}`)}</option>`)
+    .join('');
+  choice.value = STATIC_PAGE && judgeChoice === 'jev' ? 'auto' : judgeChoice;
   // 정적 페이지는 키가 가는 곳이 다르다(서버 없이 OpenAI 로 직접). 설명을 그에 맞춘다.
   if (STATIC_PAGE) $('keys-desc').textContent = t('keys.descStatic');
   $<HTMLDialogElement>('keys').showModal();
 }
 
-function saveKeys(openai: string, jev: string): void {
+function saveKeys(openai: string, jev: string, choice = 'auto'): void {
   keys.openai = openai.trim();
   keys.jev = jev.trim();
+  judgeChoice = isJudge(choice) ? choice : 'auto';
+  if (judgeChoice === 'auto') store.remove('judge');
+  else store.set('judge', judgeChoice);
   for (const name of ['openai', 'jev'] as const) {
     if (keys[name]) store.set(`key.${name}`, keys[name]);
     else store.remove(`key.${name}`);
