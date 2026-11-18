@@ -1,6 +1,6 @@
 {
   "name": "@redbridge/faceling-openai-realtime",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Browser adapter that connects the OpenAI Realtime API (WebRTC) to the Faceling expression engine",
   "keywords": [
     "faceling",
@@ -44,7 +44,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@redbridge/faceling-core": "^0.1.0"
+    "@redbridge/faceling-core": "^0.2.0"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

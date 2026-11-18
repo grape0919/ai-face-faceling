@@ -1,6 +1,6 @@
 {
   "name": "@redbridge/faceling-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-agnostic Node handlers for Faceling: Jev judgment relay and OpenAI Realtime ephemeral keys",
   "keywords": [
     "faceling",
@@ -48,7 +48,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@redbridge/faceling-core": "^0.1.0"
+    "@redbridge/faceling-core": "^0.2.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
