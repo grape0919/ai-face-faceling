@@ -45,8 +45,8 @@ const store = {
   },
 };
 
-// 화면 언어. 다른 글을 만들기 전에 먼저 정한다.
-setLang(initialLang(params.get('lang'), store.get('lang')));
+// 화면 언어. 다른 글을 만들기 전에 먼저 정한다. 영어 주소(/en/)의 페이지는 <html data-lang="en"> 이라 처음부터 영어다.
+setLang(initialLang(params.get('lang') ?? document.documentElement.dataset.lang ?? null, store.get('lang')));
 
 /**
  * 정적 페이지 방식: 서버가 없다. 기본은 녹화해 둔 판단으로 예시 대화만 재생하고,
